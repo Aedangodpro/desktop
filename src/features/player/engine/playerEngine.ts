@@ -38,6 +38,7 @@ import { showToast } from "@/shared/ui";
 import { createTranslatorSync, getStoredLocale } from "@/languages";
 import type { Track } from "@/shared/types";
 import { isLocalTrackId } from "@/shared/media/local";
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import { readSavedLyrics } from "@/shared/media/saved";
 import { loadAmbientScript } from "@/shared/media/ambient";
 import { STREAMS_REFUSED_MESSAGE } from "@/shared/youtube";
@@ -1413,7 +1414,9 @@ class PlayerEngine {
     const prefetchPromise = (async () => {
       try {
         const existing = await linerDb.getLyrics(trackId);
-        if (existing) {
+        const unusableCache =
+          existing && IS_WEB_TARGET && existing.activeProvider !== "LRCLIB";
+        if (existing && !unusableCache) {
           const lastChecked = existing.lastCheckedAt || 0;
           if (Date.now() - lastChecked < SEVEN_DAYS_MS) {
             return;
@@ -1563,6 +1566,16 @@ class PlayerEngine {
       } catch {
         cached = null;
       }
+    }
+    // In the browser the only reachable provider is LRCLIB, so a candidate
+    // cached from a word/syllable-level provider is stale: it can never be
+    // refreshed or matched again, and it is not what the source would return.
+    if (
+      cached?.candidate &&
+      IS_WEB_TARGET &&
+      cached.candidate.provider !== "LRCLIB"
+    ) {
+      cached = null;
     }
     if (!cached) {
       const saved = await readSavedLyrics(trackId, isLyricsCandidate);

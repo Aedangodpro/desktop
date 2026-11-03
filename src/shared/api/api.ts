@@ -1,3 +1,5 @@
+import { fetchLrclibLyrics } from "@/web/lyrics/lrclibLyrics";
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import {
   getAuthSession,
   getSessionExpiryMs,
@@ -1154,6 +1156,11 @@ export const api = {
     signal?: AbortSignal,
     hint?: { title: string; artist: string; durationMs?: number },
   ): AsyncGenerator<LyricsStreamEvent> {
+    // no API access in the browser build: LRCLIB is the lyrics source
+    if (IS_WEB_TARGET) {
+      yield* streamWebLyrics(hint, signal);
+      return;
+    }
     const hintParams =
       hint?.title.trim() && hint.artist.trim()
         ? new URLSearchParams({
@@ -1322,3 +1329,36 @@ export const api = {
     return request<DailyMixesResponse>("/v1/me/recommendations/daily-mixes");
   },
 };
+
+// The browser build has no API access, so lyrics come straight from LRCLIB.
+async function* streamWebLyrics(
+  hint: { title: string; artist: string; durationMs?: number } | undefined,
+  signal?: AbortSignal,
+): AsyncGenerator<LyricsStreamEvent> {
+  if (!hint?.title?.trim() || !hint.artist?.trim()) {
+    yield { type: "done", cached: false, status: "not_found" };
+    return;
+  }
+  const candidate = await fetchLrclibLyrics(hint, signal).catch(() => null);
+  if (!candidate) {
+    yield { type: "done", cached: false, status: "not_found" };
+    return;
+  }
+  yield {
+    type: "provider",
+    provider: candidate.provider,
+    status: "found",
+    syncLevel: candidate.syncLevel,
+    candidate,
+    ...(hint.durationMs ? { durationMs: hint.durationMs } : {}),
+  };
+  yield {
+    type: "done",
+    cached: false,
+    best: {
+      provider: candidate.provider,
+      quality: candidate.quality.total,
+      syncLevel: candidate.syncLevel,
+    },
+  };
+}

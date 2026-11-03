@@ -56,3 +56,6 @@ scratch/
 # native add-on build output
 /native/*/build/
 /native-build.log
+
+# browser build output
+/dist-web

@@ -1,4 +1,5 @@
 import { parseVisitorData } from "./visitorData";
+import { innertubeProxyUrl } from "@/web/proxyUrls";
 
 /**
  * Client-side YouTube visitorData session manager.
@@ -41,15 +42,18 @@ export async function getClientVisitorData(): Promise<string> {
 
   pendingFetch = (async () => {
     try {
-      const res = await fetch("https://www.youtube.com/sw.js_data", {
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        headers: {
-          "user-agent":
-            typeof navigator !== "undefined"
-              ? navigator.userAgent
-              : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      const res = await fetch(
+        innertubeProxyUrl("https://www.youtube.com/sw.js_data"),
+        {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+          headers: {
+            "user-agent":
+              typeof navigator !== "undefined"
+                ? navigator.userAgent
+                : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
         },
-      });
+      );
 
       if (!res.ok) {
         throw new Error(`sw.js_data returned ${res.status}`);

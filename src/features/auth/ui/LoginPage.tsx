@@ -1,3 +1,4 @@
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
@@ -16,6 +17,7 @@ import {
 import { useTranslation } from "@/languages";
 import { HumanCheckNotice } from "@/features/human-check";
 import { cn } from "@/shared/lib";
+import { enableGuestMode } from "../lib/guestMode";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_RE = /^[a-z0-9_]{3,30}$/;
@@ -205,7 +207,7 @@ export default function LoginPage() {
     >
       <LoginBackdrop edgeToEdge={isEdgeToEdge} />
 
-      <WindowControls variant="glass" isFullscreen />
+      {!IS_WEB_TARGET && <WindowControls variant="glass" isFullscreen />}
 
       <section className="relative z-10 mx-4 my-auto grid max-h-[calc(100%-48px)] w-full max-w-[780px] grid-cols-[300px_1fr] gap-[8px] overflow-y-auto rounded-panel border border-border-primary bg-bg-panel p-[8px]">
         <LoginBrandPanel title={heading} subtitle={subheading} />
@@ -596,6 +598,17 @@ export default function LoginPage() {
               </form>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              enableGuestMode();
+              navigate("/");
+            }}
+            className="mx-auto -mt-[2px] shrink-0 cursor-pointer border-none bg-transparent text-caption text-text-tertiary underline underline-offset-2 transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-text-primary rounded-xs"
+          >
+            {t("login.use_without_account")}
+          </button>
 
           {/* Bottom: legal warning */}
           <p className="m-0 shrink-0 text-center text-[11px] leading-[1.5] text-text-tertiary">

@@ -9,6 +9,11 @@ import {
 } from "@/shared/api";
 import { queryCache } from "@/shared/cache/queryCache";
 import type { Track } from "@/shared/types";
+import {
+  isSignedIn,
+  readLocalLibrary,
+  type LocalPlaylist,
+} from "../local-account/store/localLibrary";
 
 export interface LibraryPlaylistSummary {
   id: string;
@@ -70,6 +75,52 @@ function extractCovers(items: ApiUserPlaylistItem[]): string[] {
     .slice(0, 4);
 }
 
+function localSummaries(): PlaylistList {
+  const playlists = readLocalLibrary().playlists.map((playlist) => {
+    const coverUrls = localCovers(playlist);
+    return {
+      id: playlist.id,
+      title: playlist.title,
+      ...(playlist.description ? { description: playlist.description } : {}),
+      trackCount: playlist.items.length,
+      coverUrl: coverUrls[0] ?? "",
+      coverUrls,
+      updatedAt: playlist.updatedAt,
+      createdAt: playlist.createdAt,
+      revision: playlist.revision,
+    };
+  });
+  return { playlists, total: playlists.length };
+}
+
+function localCovers(playlist: LocalPlaylist): string[] {
+  return playlist.items
+    .map((item) => item.track.coverUrl)
+    .filter(Boolean)
+    .filter((url, index, arr) => arr.indexOf(url) === index)
+    .slice(0, 4);
+}
+
+function localDetail(playlist: LocalPlaylist): LibraryPlaylistDetail {
+  const coverUrls = localCovers(playlist);
+  const tracks = playlist.items.map((item) => ({
+    ...item.track,
+    playlistItemId: item.id,
+    addedAt: item.addedAt,
+  }));
+  return {
+    id: playlist.id,
+    title: playlist.title,
+    ...(playlist.description ? { description: playlist.description } : {}),
+    trackCount: tracks.length,
+    coverUrl: coverUrls[0] ?? "",
+    coverUrls,
+    revision: playlist.revision,
+    tracks,
+    durationMs: tracks.reduce((sum, track) => sum + (track.durationMs || 0), 0),
+  };
+}
+
 const EMPTY: PlaylistList = { playlists: [], total: 0 };
 let cache = EMPTY;
 let loaded = false;
@@ -116,8 +167,9 @@ function load(force = false): Promise<void> {
   if (request) return request;
   const session = getAuthSession();
   if (!session?.accessToken) {
-    cache = EMPTY;
-    loaded = false;
+    // no account: the on-device library is the source of truth
+    cache = localSummaries();
+    loaded = true;
     emit();
     return Promise.resolve();
   }
@@ -202,8 +254,8 @@ if (typeof window !== "undefined") {
   const handleRefresh = () => {
     const session = getAuthSession();
     if (!session?.accessToken) {
-      cache = EMPTY;
-      loaded = false;
+      cache = localSummaries();
+      loaded = true;
       emit();
     } else {
       void load(true);
@@ -286,6 +338,19 @@ export function usePlaylist(id: string | null) {
       setData(null);
       setIsLoading(false);
       return;
+    }
+
+    if (!isSignedIn()) {
+      const read = () => {
+        const playlist = readLocalLibrary().playlists.find(
+          (entry) => entry.id === id,
+        );
+        setData(playlist ? localDetail(playlist) : null);
+        setIsLoading(false);
+      };
+      read();
+      window.addEventListener("library:changed", read);
+      return () => window.removeEventListener("library:changed", read);
     }
 
     const initial = queryCache.get<LibraryPlaylistDetail>(cacheKey);

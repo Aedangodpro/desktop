@@ -191,7 +191,7 @@ export const TimelineSlider = memo(function TimelineSlider({
           <div
             className={`absolute inset-0 rounded-full transition-transform ease-out ${
               isDragging ? "duration-0" : "duration-100"
-            } ${fillClassName || "bg-text-primary"}`}
+            } ${fillClassName || "bg-accent-primary"}`}
             style={{
               transform: `translateX(${percentage - 100}%)`,
               ...(fillColor ? { backgroundColor: fillColor } : {}),

@@ -1,17 +1,29 @@
-import { Activity, useContext, useRef, type ReactElement } from "react";
+import {
+  Activity,
+  Suspense,
+  lazy,
+  useContext,
+  useRef,
+  type ReactElement,
+} from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import HomePage from "@/features/home/ui/HomePage";
 import LibraryPage from "@/features/library/ui/LibraryPage";
-import PlaylistPage from "@/features/library/ui/PlaylistPage";
 import {
   CachedTracksPage,
   LocalTracksPage,
   SavedLikesPage,
 } from "@/features/library";
-import ArtistPage from "@/features/artist/ui/ArtistPage";
-import CollectionPage from "@/features/collection/ui/CollectionPage";
 import LoginPage from "@/features/auth/ui/LoginPage";
-import PlayerPage from "@/features/player/ui/FullscreenPlayer";
+
+// Secondary screens and the fullscreen player carry their own heavy graphs
+// (audio engine, canvas, virtual lists); keep them out of the boot payload.
+const PlayerPage = lazy(() => import("@/features/player/ui/FullscreenPlayer"));
+const PlaylistPage = lazy(() => import("@/features/library/ui/PlaylistPage"));
+const ArtistPage = lazy(() => import("@/features/artist/ui/ArtistPage"));
+const CollectionPage = lazy(
+  () => import("@/features/collection/ui/CollectionPage"),
+);
 import { FullscreenRouteContext } from "@/features/navigation/fullscreenRouteContext";
 import KeepAlivePage from "./KeepAlivePage";
 import { useOfflineModeStore } from "@/features/connectivity";
@@ -51,7 +63,12 @@ export function AppRoutes() {
   const shellLocationRef = useRef(location);
   if (location.pathname !== PLAYER_PATH) shellLocationRef.current = location;
 
-  if (inFullscreenOverlay) return <PlayerPage />;
+  if (inFullscreenOverlay)
+    return (
+      <Suspense fallback={null}>
+        <PlayerPage />
+      </Suspense>
+    );
   if (location.pathname === "/login") return <LoginPage />;
 
   const shellLocation = shellLocationRef.current;
@@ -72,6 +89,7 @@ export function AppRoutes() {
       {blocked && <Navigate to="/library" replace />}
       {!isKept && !blocked && (
         <div key={`${pathname}?${search}`} className="page-transition">
+          <Suspense fallback={null}>
           <Routes location={shellLocation}>
             <Route path="/library/playlist" element={<PlaylistPage />} />
             <Route path="/library/local" element={<LocalTracksPage />} />
@@ -83,6 +101,7 @@ export function AppRoutes() {
             <Route path={PLAYER_PATH} element={null} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </div>
       )}
     </>

@@ -247,10 +247,12 @@ describe("resolveDirectAudioStream", () => {
 
     expect(stream.url).toBe(webUrl);
     expect(playerCalls(fetchSpy)).toHaveLength(0);
-    const probeRange = new URL(
-      String(fetchSpy.mock.calls[0][0]),
-    ).searchParams.get("range");
-    expect(Number(probeRange?.split("-")[0])).toBeGreaterThan(1_048_576);
+    const probeHeaders = (fetchSpy.mock.calls[0][1] as RequestInit | undefined)
+      ?.headers as Record<string, string> | undefined;
+    const probeRange = probeHeaders?.range;
+    expect(Number(probeRange?.replace("bytes=", "").split("-")[0])).toBeGreaterThan(
+      1_048_576,
+    );
   });
 
   it("retries WEB_REMIX with a fresh token, falls back to the app profiles, and only pauses it after repeated failures", async () => {

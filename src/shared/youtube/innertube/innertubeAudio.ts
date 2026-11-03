@@ -8,6 +8,7 @@ import {
 import { resolveWithProfile } from "./profileAudio";
 import { assertStreamReachable, isStreamRefused } from "./streamProbe";
 import type { ResolvedAudioStream } from "./innertubeAudioFormats";
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 
 export type { ResolvedAudioStream } from "./innertubeAudioFormats";
 
@@ -112,15 +113,29 @@ export async function resolveDirectAudioStream(
   const failures: string[] = [];
   let profilesTried = 0;
   let profilesRefused = 0;
-  if (!options.profiles && Date.now() >= webRemixRetryAt) {
+  // WEB_REMIX needs a PO token minted by the desktop main process, and the
+  // profiles that need the YouTube player script cannot load it cross-origin in
+  // a browser. Skip both there instead of burning a doomed attempt per track.
+  const webRemixAllowed = !options.profiles && !IS_WEB_TARGET;
+  const available = (options.profiles ?? PLAYBACK_PROFILES).filter(
+    (profile) => !IS_WEB_TARGET || !profile.requiresJsPlayer,
+  );
+  // ANDROID_VR is the profile that reliably hands a browser direct audio urls;
+  // trying it first saves a round trip on every track.
+  const profiles = IS_WEB_TARGET
+    ? [...available].sort(
+        (a, b) =>
+          Number(b.clientName === "ANDROID_VR") -
+          Number(a.clientName === "ANDROID_VR"),
+      )
+    : available;
+  if (webRemixAllowed && Date.now() >= webRemixRetryAt) {
     const stream = await resolveViaWebRemix(videoId, options, failures);
     if (stream) return stream;
-  } else if (!options.profiles) {
+  } else if (webRemixAllowed) {
     failures.push(`WEB_REMIX paused: ${lastWebRemixError}`);
   }
-  for (const profile of orderedProfiles(
-    options.profiles ?? PLAYBACK_PROFILES,
-  )) {
+  for (const profile of orderedProfiles(profiles)) {
     profilesTried += 1;
     try {
       const stream = await resolveWithProfile(videoId, profile, options);

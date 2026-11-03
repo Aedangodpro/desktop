@@ -295,6 +295,7 @@
     "auth_subtitle_register": "Create an account and start building your personal library.",
     "profile_setup_title": "Set up your profile",
     "profile_setup_subtitle": "Choose your unique handle and display name.",
+    "use_without_account": "Use without an account",
     "btn_continue": "Continue",
     "btn_back": "Back",
     "username_hint": "3-30 lowercase characters, numbers or underscores.",
@@ -598,7 +599,8 @@
       "overlay": "Overlay",
       "discord": "Discord RPC",
       "youtube": "YouTube",
-      "privacy": "Privacy"
+      "privacy": "Privacy",
+      "themes": "Themes"
     },
     "playback": {
       "description": "Queue behavior, click actions and audio output."
@@ -1044,6 +1046,11 @@
     },
     "connection": {
       "open_folder": "Open saved location"
+    },
+    "accent": {
+      "title": "Accent colour",
+      "description": "The colour Liner uses for highlights, likes and playback progress.",
+      "preview": "Preview"
     }
   },
   "toast": {

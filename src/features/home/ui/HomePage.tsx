@@ -58,6 +58,13 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
     savedLoading;
 
   const isReady = !isDataLoading;
+  const hasAnyData =
+    hasMixes ||
+    popularAlbums.length > 0 ||
+    listeningNow.length > 0 ||
+    (recentlyPlayed?.length ?? 0) > 0 ||
+    (popularTracksAllTime?.length ?? 0) > 0 ||
+    mostSaved.length > 0;
   const nothingLoaded =
     !mixesLoading &&
     !hasMixes &&
@@ -69,13 +76,13 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
   const [skeletonExited, setSkeletonExited] = useState(() => !isDataLoading);
 
   useEffect(() => {
-    if (isReady && !skeletonExited) {
+    if ((isReady || hasAnyData) && !skeletonExited) {
       const timer = setTimeout(() => {
         setSkeletonExited(true);
       }, 400);
       return () => clearTimeout(timer);
     }
-  }, [isReady, skeletonExited]);
+  }, [isReady, hasAnyData, skeletonExited]);
 
   return (
     <div className="relative h-full w-full overflow-y-auto overflow-x-hidden bg-transparent pt-(--page-inset-top) pb-(--page-inset-bottom)">
@@ -98,7 +105,7 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
           </div>
         )}
 
-        {isReady && !nothingLoaded && (
+        {hasAnyData && (
           <div className="col-start-1 row-start-1 w-full pb-[16px]">
             {mixesLoading ? (
               <MixesSectionSkeleton />

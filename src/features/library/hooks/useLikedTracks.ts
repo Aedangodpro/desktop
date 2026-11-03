@@ -1,8 +1,17 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { api, getAuthSession, toClientTrack } from "@/shared/api";
 import type { Track } from "@/shared/types";
+import { readLocalLibrary } from "../local-account/store/localLibrary";
 
 type LikedData = { tracks: Track[]; total: number };
+
+function localLiked(): LikedData {
+  const tracks = readLocalLibrary().liked.map((entry) => ({
+    ...entry.track,
+    addedAt: entry.likedAt,
+  }));
+  return { tracks, total: tracks.length };
+}
 const EMPTY: LikedData = { tracks: [], total: 0 };
 let cache: LikedData = EMPTY;
 let loaded = false;
@@ -64,9 +73,11 @@ function load(force = false): Promise<void> {
   if (request) return request;
   const session = getAuthSession();
   if (!session?.accessToken) {
-    cache = EMPTY;
-    loaded = false;
+    // no account: likes live on this device
+    cache = localLiked();
+    loaded = true;
     fetchedFromServer = false;
+    loadFailed = false;
     emit(false);
     return Promise.resolve();
   }
@@ -86,6 +97,10 @@ function load(force = false): Promise<void> {
         })),
       );
       cursor = page.nextCursor ?? undefined;
+      // publish partial results: large libraries used to render nothing until
+      // every page had finished loading
+      cache = { tracks: [...tracks], total: tracks.length };
+      emit(false);
     } while (cursor);
     cache = { tracks, total: tracks.length };
     loaded = true;
@@ -135,9 +150,10 @@ if (typeof window !== "undefined") {
   const handleRefresh = () => {
     const session = getAuthSession();
     if (!session?.accessToken) {
-      cache = EMPTY;
-      loaded = false;
+      cache = localLiked();
+      loaded = true;
       fetchedFromServer = false;
+      loadFailed = false;
       optimisticOverrides.clear();
       emit(false);
     } else {

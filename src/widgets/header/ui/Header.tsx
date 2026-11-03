@@ -7,6 +7,7 @@ import WindowControls, {
 } from "@/features/navigation/ui/WindowControls";
 import logo from "@/assets/logo.svg";
 import { cn } from "@/shared/lib";
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import { HistoryNavIsland } from "./HistoryNavIsland";
 
 export interface HeaderProps {
@@ -48,15 +49,18 @@ export const Header = forwardRef<HTMLElement, HeaderProps>(function Header(
 
       <div className="flex items-center gap-[8px] mr-[6px] shrink-0">
         <HistoryNavIsland />
-        <motion.div
-          layoutId={WINDOW_CONTROLS_LAYOUT_ID}
-          transition={WINDOW_CONTROLS_MORPH}
-          data-no-window-drag
-          data-no-tooltip="true"
-          className="h-[38px] flex items-center gap-[2px] px-[4px] rounded-[10px] shrink-0 bg-bg-glass backdrop-blur-[20px]"
-        >
-          <WindowControls bare />
-        </motion.div>
+        {/* a browser tab has no window to minimise, maximise or close */}
+        {!IS_WEB_TARGET && (
+          <motion.div
+            layoutId={WINDOW_CONTROLS_LAYOUT_ID}
+            transition={WINDOW_CONTROLS_MORPH}
+            data-no-window-drag
+            data-no-tooltip="true"
+            className="h-[38px] flex items-center gap-[2px] px-[4px] rounded-[10px] shrink-0 bg-bg-glass backdrop-blur-[20px]"
+          >
+            <WindowControls bare />
+          </motion.div>
+        )}
       </div>
     </header>
   );

@@ -23,6 +23,7 @@
     "src",
     "electron",
     "vite.config.ts",
+    "vite.config.web.ts",
     "vite.csp.ts",
     "vitest.config.ts"
   ],

@@ -82,6 +82,16 @@ describe("TimelineSlider Component", () => {
     expect(container?.textContent).toContain("3:00");
   });
 
+  it("paints the progress fill with the accent palette", () => {
+    act(() => {
+      root?.render(
+        <TimelineSlider positionMs={30000} durationMs={180000} onSeek={vi.fn()} />,
+      );
+    });
+    const slider = container?.querySelector('[role="slider"]');
+    expect(slider?.querySelector(".bg-accent-primary")).not.toBeNull();
+  });
+
   it("handles keyboard seek (ArrowRight/ArrowLeft/Home/End)", () => {
     const handleSeek = vi.fn();
     act(() => {

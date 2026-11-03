@@ -1,7 +1,26 @@
 import { useCallback, useState } from "react";
-import { api } from "@/shared/api";
+import {
+  api,
+  type ApiUserPlaylist,
+  type ApiUserPlaylistItem,
+} from "@/shared/api";
+import type { Track } from "@/shared/types";
 import { notifyLibraryChanged, evictPlaylistFromCache } from "./usePlaylists";
 import { applyOptimisticLike, applyOptimisticUnlike } from "./useLikedTracks";
+import {
+  addLocalPlaylistTrack,
+  createLocalPlaylist,
+  deleteLocalPlaylist,
+  isSignedIn,
+  likeLocalTrack,
+  moveLocalPlaylistItem,
+  placeholderTrack,
+  readLocalLibrary,
+  removeLocalPlaylistItem,
+  unlikeLocalTrack,
+  type LocalPlaylist,
+  type LocalPlaylistItem,
+} from "../local-account/store/localLibrary";
 
 type Options = {
   onSuccess?: (...args: any[]) => void;
@@ -38,15 +57,37 @@ function useMutation<T, R = unknown>(action: (input: T) => Promise<R>) {
 
 export function useAddPlaylistTracks() {
   return useMutation(
-    ({ playlistId, trackId }: { playlistId: string; trackId: string }) =>
-      api.addPlaylistTrack(playlistId, trackId),
+    ({
+      playlistId,
+      trackId,
+      track,
+    }: {
+      playlistId: string;
+      trackId: string;
+      track?: Track;
+    }) => {
+      if (!isSignedIn()) {
+        const item = addLocalPlaylistTrack(
+          playlistId,
+          track ?? resolveLocalTrack({ trackId }),
+        );
+        if (!item) return Promise.reject(new Error("Playlist not found"));
+        return Promise.resolve(localItemPayload(item));
+      }
+      return api.addPlaylistTrack(playlistId, trackId);
+    },
   );
 }
 
 export function useRemovePlaylistTracks() {
   return useMutation(
-    ({ playlistId, itemId }: { playlistId: string; itemId: string }) =>
-      api.removePlaylistItem(playlistId, itemId),
+    ({ playlistId, itemId }: { playlistId: string; itemId: string }) => {
+      if (!isSignedIn()) {
+        removeLocalPlaylistItem(playlistId, itemId);
+        return Promise.resolve();
+      }
+      return api.removePlaylistItem(playlistId, itemId);
+    },
   );
 }
 
@@ -62,20 +103,47 @@ export function useReorderPlaylistTracks() {
       itemId: string;
       beforeItemId: string | null;
       revision: number;
-    }) => api.movePlaylistItem(playlistId, itemId, beforeItemId, revision),
+    }) => {
+      if (!isSignedIn()) {
+        moveLocalPlaylistItem(playlistId, itemId, beforeItemId);
+        return Promise.resolve({
+          playlist: localPlaylistPayload(
+            readLocalLibrary().playlists.find(
+              (playlist) => playlist.id === playlistId,
+            ) ?? { id: playlistId, title: "", createdAt: "", updatedAt: "", revision: 0, items: [] },
+          ),
+          items: (
+            readLocalLibrary().playlists.find(
+              (playlist) => playlist.id === playlistId,
+            )?.items ?? []
+          ).map(localItemPayload),
+        });
+      }
+      return api.movePlaylistItem(playlistId, itemId, beforeItemId, revision);
+    },
   );
 }
 
 export function useCreatePlaylist() {
   return useMutation(
-    ({ title, description }: { title: string; description?: string }) =>
-      api.createPlaylist({ title, description }),
+    ({ title, description }: { title: string; description?: string }) => {
+      if (!isSignedIn()) {
+        return Promise.resolve(
+          localPlaylistPayload(createLocalPlaylist({ title, description })),
+        );
+      }
+      return api.createPlaylist({ title, description });
+    },
   );
 }
 
 export function useDeletePlaylist() {
   return useMutation(async ({ playlistId }: { playlistId: string }) => {
     evictPlaylistFromCache(playlistId);
+    if (!isSignedIn()) {
+      deleteLocalPlaylist(playlistId);
+      return;
+    }
     await api.deletePlaylist(playlistId);
   });
 }
@@ -137,6 +205,47 @@ type TrackMutationInput = string | { trackId: string; [key: string]: unknown };
 const trackIdFrom = (input: TrackMutationInput) =>
   typeof input === "string" ? input : input.trackId;
 
+function localItemPayload(item: LocalPlaylistItem): ApiUserPlaylistItem {
+  return {
+    id: item.id,
+    track: item.track as unknown as ApiUserPlaylistItem["track"],
+    position: 0,
+    addedAt: item.addedAt,
+  };
+}
+
+function localPlaylistPayload(playlist: LocalPlaylist): ApiUserPlaylist {
+  return {
+    id: playlist.id,
+    title: playlist.title,
+    ...(playlist.description ? { description: playlist.description } : {}),
+    isPublic: false,
+    createdAt: playlist.createdAt,
+    updatedAt: playlist.updatedAt,
+    revision: playlist.revision,
+    trackCount: playlist.items.length,
+    coverUrls: playlist.items
+      .map((item) => item.track.coverUrl)
+      .filter(Boolean)
+      .slice(0, 4),
+  };
+}
+
+// prefers a real snapshot from the caller, then anything already on this device
+function resolveLocalTrack(input: TrackMutationInput): Track {
+  const trackId = trackIdFrom(input);
+  const provided = typeof input === "object" ? input.track : undefined;
+  if (provided && typeof provided === "object") return provided as Track;
+  const library = readLocalLibrary();
+  const liked = library.liked.find((entry) => entry.trackId === trackId);
+  if (liked) return liked.track;
+  for (const playlist of library.playlists) {
+    const item = playlist.items.find((entry) => entry.track.id === trackId);
+    if (item) return item.track;
+  }
+  return placeholderTrack(trackId);
+}
+
 export function useLikeTrack() {
   const [isPending, setIsPending] = useState(false);
 
@@ -145,6 +254,11 @@ export function useLikeTrack() {
     setIsPending(true);
     const rollback = applyOptimisticLike(trackId);
     try {
+      if (!isSignedIn()) {
+        likeLocalTrack(resolveLocalTrack(input));
+        notifyLibraryChanged();
+        return;
+      }
       const result = await api.likeTrack(trackId);
       notifyLibraryChanged();
       return result;
@@ -177,6 +291,11 @@ export function useUnlikeTrack() {
     setIsPending(true);
     const rollback = applyOptimisticUnlike(trackId);
     try {
+      if (!isSignedIn()) {
+        unlikeLocalTrack(trackId);
+        notifyLibraryChanged();
+        return;
+      }
       const result = await api.unlikeTrack(trackId);
       notifyLibraryChanged();
       return result;

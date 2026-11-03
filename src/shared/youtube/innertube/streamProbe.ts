@@ -1,4 +1,5 @@
 import { InnertubeError } from "./innertubeClient";
+import { mediaProxyUrl } from "@/web/proxyUrls";
 
 const PROBE_OFFSET = 1_048_576 + 4096;
 const REJECTED_PREFIX = "stream url rejected with";
@@ -17,11 +18,15 @@ export async function assertStreamReachable(
   contentLength: number | undefined,
   signal?: AbortSignal,
 ): Promise<void> {
-  const probe = new URL(url);
   const offset =
     contentLength && contentLength > PROBE_OFFSET ? PROBE_OFFSET : 0;
-  probe.searchParams.set("range", `${offset}-${offset}`);
-  const response = await fetch(probe.toString(), { signal });
+  // A `range` query param is not a Range request: googlevideo answers a plain
+  // GET with `403`, and on web the param would land on the relay url instead of
+  // the media url. The header is what both hosts actually honour.
+  const response = await fetch(mediaProxyUrl(url), {
+    signal,
+    headers: { range: `bytes=${offset}-${offset}` },
+  });
   await response.body?.cancel().catch(() => undefined);
   if (!response.ok)
     throw new InnertubeError(

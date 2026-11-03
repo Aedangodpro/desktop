@@ -31,4 +31,23 @@ describe("human check", () => {
       HumanCheckCancelledError,
     );
   });
+
+  it("resolves the check origin when the api base is a same-origin path", async () => {
+    // The web build points VITE_API_URL at "/__liner", which `new URL` cannot
+    // parse on its own. It used to throw here, which crashed the check frame
+    // and left sign-in waiting forever.
+    vi.resetModules();
+    vi.stubEnv("VITE_API_URL", "/__liner");
+    try {
+      const mod = await import("./humanCheck");
+      expect(mod.humanCheckPageUrl("login")).toBe(
+        "/__liner/v1/auth/verify?action=login",
+      );
+      expect(() => mod.humanCheckOrigin()).not.toThrow();
+      expect(mod.humanCheckOrigin()).toMatch(/^https?:\/\//);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
 });

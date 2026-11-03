@@ -13,15 +13,28 @@ const MAX_CHUNK_ATTEMPTS = 2;
 
 export function isGoogleVideoUrl(url: string): boolean {
   try {
-    return new URL(url).hostname.endsWith(".googlevideo.com");
+    const parsed = new URL(url, "http://localhost");
+    // the web build reaches googlevideo through the same-origin relay, which is
+    // range-capable in the same way
+    return (
+      parsed.hostname.endsWith(".googlevideo.com") ||
+      parsed.pathname === "/__media"
+    );
   } catch {
     return false;
   }
 }
 
 function withRange(url: string, start: number, end: number): string {
-  const parsed = new URL(url);
-  parsed.searchParams.set("range", `${start}-${end}`);
+  const parsed = new URL(url, "http://localhost");
+  if (parsed.pathname === "/__media") {
+    // the range has to reach the relay as parameters; googlevideo refuses an
+    // open-ended range and the relay bounds what it forwards
+    parsed.searchParams.set("start", String(start));
+    parsed.searchParams.set("end", String(end));
+  } else {
+    parsed.searchParams.set("range", `${start}-${end}`);
+  }
   return parsed.toString();
 }
 

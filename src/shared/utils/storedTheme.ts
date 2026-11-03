@@ -1,3 +1,5 @@
+import { applyStoredAccentTheme } from "./accentTheme";
+
 export function applyStoredTheme(): void {
   let stored: string | null = null;
   try {
@@ -13,4 +15,5 @@ export function applyStoredTheme(): void {
   root.classList.add("app-window");
   root.setAttribute("data-theme", theme);
   root.style.colorScheme = theme;
+  applyStoredAccentTheme();
 }

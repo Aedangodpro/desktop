@@ -32,6 +32,8 @@ import {
 import { findYoutubeStandIn } from "./youtubeStandIn";
 import { findExactSongVersion } from "./exactSongVersion";
 import { appAllowsAccountPlayback } from "./accountPlayback";
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
+import { mediaProxyUrl } from "@/web/proxyUrls";
 
 export interface ResolveStreamOptions {
   progressive?: boolean;
@@ -146,12 +148,21 @@ async function resolveYoutubeTrack(
   return resolveYoutubeAudio(videoId, progressive, signal);
 }
 
+// A browser cannot load googlevideo or presigned R2 urls directly: neither host
+// sends CORS headers, and the element uses `crossorigin` for the effects graph.
+// Everything playable is routed through the same-origin relay instead.
+function withWebMediaProxy(stream: PlaybackStream): PlaybackStream {
+  if (!IS_WEB_TARGET) return stream;
+  if (!("url" in stream) || !stream.url) return stream;
+  return { ...stream, url: mediaProxyUrl(stream.url) };
+}
+
 export async function resolvePlaybackStream(
   track: PlayableTrack,
   signal?: AbortSignal,
   options: ResolveStreamOptions = {},
 ): Promise<PlaybackStream> {
-  const stream = await resolveStream(track, signal, options);
+  const stream = withWebMediaProxy(await resolveStream(track, signal, options));
   rememberStreamOrigin(track.id, stream);
   return stream;
 }

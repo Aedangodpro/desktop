@@ -30,7 +30,15 @@ export function humanCheckPageUrl(action: HumanCheckAction): string {
 }
 
 export function humanCheckOrigin(): string {
-  return new URL(getApiBaseUrl()).origin;
+  // The web build talks to a same-origin path (`/__liner`), which `new URL`
+  // cannot parse without a base and would throw here. Resolve it against the
+  // page origin; absolute bases keep behaving exactly as before.
+  const base = getApiBaseUrl();
+  const page =
+    typeof window !== "undefined" && window.location?.href
+      ? window.location.href
+      : "http://localhost";
+  return new URL(base, page).origin;
 }
 
 export function isHumanCheckMode(value: unknown): value is HumanCheckMode {

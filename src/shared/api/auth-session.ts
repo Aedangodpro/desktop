@@ -26,11 +26,31 @@ function mainBridge(): MainAuthBridge | null {
   return window.linerElectron?.authSession ?? null;
 }
 
+/**
+ * A stored session is only usable if both tokens are present. Anything else
+ * (an older shape, a half-written value, another app's key) used to be adopted
+ * as a session and then fail every request with a confusing 401.
+ */
+function isStoredSession(value: unknown): value is AuthTokens {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.accessToken === "string" &&
+    candidate.accessToken.length > 0 &&
+    typeof candidate.refreshToken === "string" &&
+    candidate.refreshToken.length > 0
+  );
+}
+
 function readLocal(): AuthTokens | null {
   if (typeof window === "undefined") return null;
   try {
     const value = localStorage.getItem(STORAGE_KEY);
-    return value ? (JSON.parse(value) as AuthTokens) : null;
+    if (!value) return null;
+    const parsed: unknown = JSON.parse(value);
+    if (isStoredSession(parsed)) return parsed;
+    dropLocal();
+    return null;
   } catch {
     return null;
   }
