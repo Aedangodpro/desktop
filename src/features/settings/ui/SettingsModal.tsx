@@ -345,7 +345,9 @@ export default function SettingsModal() {
     });
 
     SETTING_ITEMS.filter(
-      (item) => !IS_WEB_TARGET || (item.tabId !== "Youtube" && item.tabId !== "Discord"),
+      (item) =>
+        !IS_WEB_TARGET ||
+        (item.tabId !== "Youtube" && item.tabId !== "Discord"),
     ).forEach((item) => {
       const texts = [
         ...getTranslationsForAllLocales(item.titleKey),

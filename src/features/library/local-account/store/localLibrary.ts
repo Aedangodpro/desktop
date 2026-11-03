@@ -60,7 +60,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readTrack(value: unknown): Track | null {
-  if (!isRecord(value) || typeof value.id !== "string" || !value.id) return null;
+  if (!isRecord(value) || typeof value.id !== "string" || !value.id)
+    return null;
   return value as unknown as Track;
 }
 
@@ -76,7 +77,8 @@ function readItem(value: unknown): LocalPlaylistItem | null {
 }
 
 function readPlaylist(value: unknown): LocalPlaylist | null {
-  if (!isRecord(value) || typeof value.id !== "string" || !value.id) return null;
+  if (!isRecord(value) || typeof value.id !== "string" || !value.id)
+    return null;
   const items = Array.isArray(value.items)
     ? value.items
         .map(readItem)
@@ -256,7 +258,9 @@ export function updateLocalPlaylist(
 }
 
 export function deleteLocalPlaylist(id: string): void {
-  withPlaylists((playlists) => playlists.filter((playlist) => playlist.id !== id));
+  withPlaylists((playlists) =>
+    playlists.filter((playlist) => playlist.id !== id),
+  );
 }
 
 export function addLocalPlaylistTrack(
@@ -265,7 +269,9 @@ export function addLocalPlaylistTrack(
 ): LocalPlaylistItem | null {
   let result: LocalPlaylistItem | null = null;
   const library = readLocalLibrary();
-  const existing = library.playlists.find((playlist) => playlist.id === playlistId);
+  const existing = library.playlists.find(
+    (playlist) => playlist.id === playlistId,
+  );
   if (!existing) return null;
 
   const already = existing.items.find((item) => item.track.id === track.id);
@@ -293,7 +299,8 @@ export function removeLocalPlaylistItem(
 ): void {
   withPlaylists((playlists) =>
     playlists.map((playlist) =>
-      playlist.id === playlistId && playlist.items.some((item) => item.id === itemId)
+      playlist.id === playlistId &&
+      playlist.items.some((item) => item.id === itemId)
         ? touch({
             ...playlist,
             items: playlist.items.filter((item) => item.id !== itemId),

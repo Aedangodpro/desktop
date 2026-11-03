@@ -250,9 +250,9 @@ describe("resolveDirectAudioStream", () => {
     const probeHeaders = (fetchSpy.mock.calls[0][1] as RequestInit | undefined)
       ?.headers as Record<string, string> | undefined;
     const probeRange = probeHeaders?.range;
-    expect(Number(probeRange?.replace("bytes=", "").split("-")[0])).toBeGreaterThan(
-      1_048_576,
-    );
+    expect(
+      Number(probeRange?.replace("bytes=", "").split("-")[0]),
+    ).toBeGreaterThan(1_048_576);
   });
 
   it("retries WEB_REMIX with a fresh token, falls back to the app profiles, and only pauses it after repeated failures", async () => {

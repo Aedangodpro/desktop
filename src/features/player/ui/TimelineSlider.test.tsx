@@ -85,7 +85,11 @@ describe("TimelineSlider Component", () => {
   it("paints the progress fill with the accent palette", () => {
     act(() => {
       root?.render(
-        <TimelineSlider positionMs={30000} durationMs={180000} onSeek={vi.fn()} />,
+        <TimelineSlider
+          positionMs={30000}
+          durationMs={180000}
+          onSeek={vi.fn()}
+        />,
       );
     });
     const slider = container?.querySelector('[role="slider"]');

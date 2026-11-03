@@ -1,8 +1,16 @@
 <!doctype html>
-<html lang="en" class="antialiased" data-theme="dark" style="color-scheme: dark">
+<html
+  lang="en"
+  class="antialiased"
+  data-theme="dark"
+  style="color-scheme: dark"
+>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <meta name="referrer" content="no-referrer" />
     <meta name="theme-color" content="#08090b" />
     <meta name="color-scheme" content="dark light" />
@@ -52,8 +60,16 @@
         justify-items: center;
         gap: 22px;
         background:
-          radial-gradient(920px 520px at 50% 12%, rgba(76, 201, 240, 0.1), transparent 62%),
-          radial-gradient(700px 420px at 50% 100%, rgba(59, 130, 246, 0.08), transparent 60%),
+          radial-gradient(
+            920px 520px at 50% 12%,
+            rgba(76, 201, 240, 0.1),
+            transparent 62%
+          ),
+          radial-gradient(
+            700px 420px at 50% 100%,
+            rgba(59, 130, 246, 0.08),
+            transparent 60%
+          ),
           var(--shell-bg);
         transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1);
       }
@@ -95,7 +111,12 @@
         inset: 0;
         width: 42%;
         border-radius: inherit;
-        background: linear-gradient(90deg, transparent, var(--shell-accent), transparent);
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--shell-accent),
+          transparent
+        );
         animation: boot-sweep 1.35s cubic-bezier(0.65, 0, 0.35, 1) infinite;
       }
       @keyframes boot-sweep {

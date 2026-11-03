@@ -73,7 +73,10 @@ export const UPSTREAM_CHUNK_BYTES = 256 * 1024;
 const ANY_RANGE = /^bytes=(\d+)-(\d*)$/;
 const CONTENT_RANGE_TOTAL = /^bytes \d+-\d+\/(\d+)$/i;
 
-async function contentTotal(target: URL, offset: number): Promise<number | null> {
+async function contentTotal(
+  target: URL,
+  offset: number,
+): Promise<number | null> {
   try {
     const probe = await fetch(target, {
       headers: {
@@ -211,9 +214,7 @@ async function handleMedia(
       ? `bytes=${start}-${end}`
       : await upstreamRange(
           parsed,
-          typeof req.headers.range === "string"
-            ? req.headers.range
-            : undefined,
+          typeof req.headers.range === "string" ? req.headers.range : undefined,
         );
   if (typeof req.headers["if-range"] === "string")
     headers["if-range"] = req.headers["if-range"];

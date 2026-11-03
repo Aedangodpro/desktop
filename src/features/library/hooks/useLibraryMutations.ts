@@ -110,7 +110,14 @@ export function useReorderPlaylistTracks() {
           playlist: localPlaylistPayload(
             readLocalLibrary().playlists.find(
               (playlist) => playlist.id === playlistId,
-            ) ?? { id: playlistId, title: "", createdAt: "", updatedAt: "", revision: 0, items: [] },
+            ) ?? {
+              id: playlistId,
+              title: "",
+              createdAt: "",
+              updatedAt: "",
+              revision: 0,
+              items: [],
+            },
           ),
           items: (
             readLocalLibrary().playlists.find(

@@ -15,7 +15,14 @@ const testSigner: ApiProxySigner = ({ method, path, body }) => {
   const timestamp = Math.floor(Date.now() / 1000);
   const nonce = Math.random().toString(16).slice(2, 18);
   return {
-    signature: signWithSecret(SECRET, method, path, body ?? "", timestamp, nonce),
+    signature: signWithSecret(
+      SECRET,
+      method,
+      path,
+      body ?? "",
+      timestamp,
+      nonce,
+    ),
     timestamp,
     nonce,
   };
@@ -42,7 +49,11 @@ function listen(server: http.Server): Promise<number> {
 
 /** Mock upstream that verifies the HMAC the proxy claims to send. */
 async function startUpstream(
-  reply: (seen: Seen) => { status: number; headers?: Record<string, string>; body: string },
+  reply: (seen: Seen) => {
+    status: number;
+    headers?: Record<string, string>;
+    body: string;
+  },
 ): Promise<{ origin: string; seen: Seen[] }> {
   const seen: Seen[] = [];
   const server = http.createServer((req, res) => {
@@ -71,7 +82,10 @@ async function startUpstream(
       };
       seen.push(record);
       const out = reply(record);
-      res.writeHead(out.status, out.headers ?? { "content-type": "application/json" });
+      res.writeHead(
+        out.status,
+        out.headers ?? { "content-type": "application/json" },
+      );
       res.end(out.body);
     });
   });
@@ -166,7 +180,10 @@ describe("api proxy", () => {
     const proxy = await startProxy(upstream.origin);
 
     const res = await fetch(`${proxy}/__liner/v1/me`, {
-      headers: { authorization: "Bearer token-123", origin: "http://localhost:3000" },
+      headers: {
+        authorization: "Bearer token-123",
+        origin: "http://localhost:3000",
+      },
     });
     const body = (await res.json()) as {
       authorization: string | null;
@@ -220,7 +237,8 @@ describe("api proxy", () => {
       status: 200,
       headers: {
         "content-type": "application/json",
-        "set-cookie": "session=abc; Domain=api.example.com; Path=/v1/auth; HttpOnly",
+        "set-cookie":
+          "session=abc; Domain=api.example.com; Path=/v1/auth; HttpOnly",
       },
       body: "{}",
     }));
@@ -247,7 +265,10 @@ describe("api proxy", () => {
   });
 
   it("leaves non-proxy paths alone", async () => {
-    const handle = createApiProxy({ target: "http://127.0.0.1:1", sign: testSigner });
+    const handle = createApiProxy({
+      target: "http://127.0.0.1:1",
+      sign: testSigner,
+    });
     const server = http.createServer((req, res) => {
       void handle(req, res).then((handled) => {
         res.writeHead(handled ? 200 : 418);

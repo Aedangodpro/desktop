@@ -9,8 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 function mountShell(): void {
   document.documentElement.removeAttribute("data-runtime");
   document.documentElement.removeAttribute("data-ready");
-  document.body.innerHTML =
-    '<div id="root"></div><div id="boot-splash"></div>';
+  document.body.innerHTML = '<div id="root"></div><div id="boot-splash"></div>';
 }
 
 function fileDropEvent(): Event {

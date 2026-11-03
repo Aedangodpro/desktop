@@ -45,7 +45,11 @@ function mockResponse(): MockResponse {
 
 function mockRequest(
   url: string,
-  init: { method?: string; headers?: Record<string, string>; body?: string } = {},
+  init: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  } = {},
 ): IncomingMessage {
   const req = Readable.from(
     init.body ? [Buffer.from(init.body)] : [],
@@ -80,7 +84,9 @@ describe("media relay", () => {
     const handle = createMediaRelay();
     const response = mockResponse();
     await handle(
-      mockRequest(`/__media?url=${encodeURIComponent("https://evil.test/a.mp3")}`),
+      mockRequest(
+        `/__media?url=${encodeURIComponent("https://evil.test/a.mp3")}`,
+      ),
       response.res,
     );
     expect(response.status()).toBe(403);
@@ -221,16 +227,19 @@ describe("media relay", () => {
     const response = mockResponse();
 
     await handle(
-      mockRequest("/__yt/music.youtube.com/youtubei/v1/player?prettyPrint=false", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          cookie: "secret=1",
-          origin: "http://localhost:3000",
-          "x-youtube-client-name": "67",
+      mockRequest(
+        "/__yt/music.youtube.com/youtubei/v1/player?prettyPrint=false",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: "secret=1",
+            origin: "http://localhost:3000",
+            "x-youtube-client-name": "67",
+          },
+          body: '{"videoId":"abc"}',
         },
-        body: '{"videoId":"abc"}',
-      }),
+      ),
       response.res,
     );
     await response.finished;

@@ -6,10 +6,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import pkg from "./package.json" with { type: "json" };
 import { contentSecurityPolicyPlugin } from "./vite.csp.ts";
-import {
-  API_PROXY_PREFIX,
-  createApiProxy,
-} from "./src/web/server/apiProxy";
+import { API_PROXY_PREFIX, createApiProxy } from "./src/web/server/apiProxy";
 import { createMediaRelay } from "./src/web/server/mediaRelay";
 import { setDevSigningSecret } from "./electron/crypto";
 

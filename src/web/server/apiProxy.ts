@@ -195,9 +195,7 @@ export function createApiProxy(options: ApiProxyOptions): ApiProxyHandler {
 
     // A Blob keeps the bytes intact (including non-UTF-8 uploads) and satisfies
     // the fetch body type without copying through an ArrayBuffer cast.
-    const payload = body.length
-      ? new Blob([new Uint8Array(body)])
-      : undefined;
+    const payload = body.length ? new Blob([new Uint8Array(body)]) : undefined;
 
     let upstream: Response;
     try {

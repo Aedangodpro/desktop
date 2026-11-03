@@ -79,7 +79,7 @@ URLs, which the relay then serves.
 ### Deploying
 
 `dist-web/` is static, but the app is **not** functional without the proxies.
-Any deployment must forward `/__liner/*` to the API *and* sign the forwarded
+Any deployment must forward `/__liner/*` to the API _and_ sign the forwarded
 request, otherwise sign-in fails. It must also forward `/__media` and `/__yt`
 to the hosts above (no signing needed, keep `Range` and the status), or nothing
 plays. Do not expose the signing key to the client, and do not point
@@ -153,13 +153,13 @@ persisted under `liner_accent_theme`.
 All account data is server-side and authenticated by the bearer token, so it
 restores automatically once sign-in works:
 
-| Data | Endpoint |
-| --- | --- |
-| Profile | `GET /v1/me` |
-| Playlists | `GET /v1/me/playlists`, `GET /v1/me/playlists/:id` |
-| Liked songs | `GET /v1/me/library/tracks` |
-| Saved albums/artists/playlists | `GET /v1/me/library/{albums,artists,playlists}` |
-| History | `GET /v1/me/history` |
+| Data                           | Endpoint                                           |
+| ------------------------------ | -------------------------------------------------- |
+| Profile                        | `GET /v1/me`                                       |
+| Playlists                      | `GET /v1/me/playlists`, `GET /v1/me/playlists/:id` |
+| Liked songs                    | `GET /v1/me/library/tracks`                        |
+| Saved albums/artists/playlists | `GET /v1/me/library/{albums,artists,playlists}`    |
+| History                        | `GET /v1/me/history`                               |
 
 Nothing is cached per-account in the browser beyond playlist covers and query
 caches, both keyed by content and cleared on sign-out.
@@ -239,11 +239,11 @@ Routing needs no rewrite rules: the app uses `HashRouter`, and the build emits
 depends on three same-origin endpoints supplied by the Node server in
 `src/web/server` (development and `pnpm preview:web`):
 
-| Path | Why a browser cannot replace it |
-| --- | --- |
+| Path       | Why a browser cannot replace it                                                                                  |
+| ---------- | ---------------------------------------------------------------------------------------------------------------- |
 | `/__liner` | API requests are HMAC-signed with a key that lives in the main process; `api.tryliner.fun` sends no CORS headers |
-| `/__yt` | Innertube answers the CORS preflight with 403 |
-| `/__media` | googlevideo sends no CORS headers and 403s ranges over 256 KiB |
+| `/__yt`    | Innertube answers the CORS preflight with 403                                                                    |
+| `/__media` | googlevideo sends no CORS headers and 403s ranges over 256 KiB                                                   |
 
 So Pages alone renders the shell, guest mode, the locally stored library, local
 files and LRCLIB lyrics, but sign-in, the online catalog and YouTube playback

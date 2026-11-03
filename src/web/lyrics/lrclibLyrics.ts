@@ -89,7 +89,8 @@ function closest(
   );
   if (!usable.length) return null;
   return usable.sort((a, b) => {
-    const syncRank = Number(Boolean(b.syncedLyrics)) - Number(Boolean(a.syncedLyrics));
+    const syncRank =
+      Number(Boolean(b.syncedLyrics)) - Number(Boolean(a.syncedLyrics));
     if (syncRank) return syncRank;
     if (durationSeconds === null) return 0;
     return (
@@ -128,7 +129,10 @@ export async function fetchLrclibLyrics(
 
   try {
     const search = new URLSearchParams({ q: `${title} ${artist}` });
-    const response = await request(`${BASE}/search?${search.toString()}`, signal);
+    const response = await request(
+      `${BASE}/search?${search.toString()}`,
+      signal,
+    );
     if (!response.ok) return null;
     const results = (await response.json()) as LrclibResult[];
     if (!Array.isArray(results)) return null;

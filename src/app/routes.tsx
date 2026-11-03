@@ -90,17 +90,17 @@ export function AppRoutes() {
       {!isKept && !blocked && (
         <div key={`${pathname}?${search}`} className="page-transition">
           <Suspense fallback={null}>
-          <Routes location={shellLocation}>
-            <Route path="/library/playlist" element={<PlaylistPage />} />
-            <Route path="/library/local" element={<LocalTracksPage />} />
-            <Route path="/library/cached" element={<CachedTracksPage />} />
-            <Route path="/library/saved" element={<SavedLikesPage />} />
-            <Route path="/artist" element={<ArtistPage />} />
-            <Route path="/collection" element={<CollectionPage />} />
-            <Route path="/settings" element={<Navigate to="/" replace />} />
-            <Route path={PLAYER_PATH} element={null} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            <Routes location={shellLocation}>
+              <Route path="/library/playlist" element={<PlaylistPage />} />
+              <Route path="/library/local" element={<LocalTracksPage />} />
+              <Route path="/library/cached" element={<CachedTracksPage />} />
+              <Route path="/library/saved" element={<SavedLikesPage />} />
+              <Route path="/artist" element={<ArtistPage />} />
+              <Route path="/collection" element={<CollectionPage />} />
+              <Route path="/settings" element={<Navigate to="/" replace />} />
+              <Route path={PLAYER_PATH} element={null} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </Suspense>
         </div>
       )}

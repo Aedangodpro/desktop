@@ -61,24 +61,22 @@ describe("fetchLrclibLyrics", () => {
   });
 
   it("falls back to search and prefers a synced result near the duration", async () => {
-    fetchMock
-      .mockResolvedValueOnce(json({}, 404))
-      .mockResolvedValueOnce(
-        json([
-          {
-            trackName: "Other",
-            artistName: "Rick Astley",
-            duration: 500,
-            plainLyrics: "wrong",
-          },
-          {
-            trackName: "Never Gonna Give You Up",
-            artistName: "Rick Astley",
-            duration: 214,
-            syncedLyrics: "[00:02.00]right",
-          },
-        ]),
-      );
+    fetchMock.mockResolvedValueOnce(json({}, 404)).mockResolvedValueOnce(
+      json([
+        {
+          trackName: "Other",
+          artistName: "Rick Astley",
+          duration: 500,
+          plainLyrics: "wrong",
+        },
+        {
+          trackName: "Never Gonna Give You Up",
+          artistName: "Rick Astley",
+          duration: 214,
+          syncedLyrics: "[00:02.00]right",
+        },
+      ]),
+    );
 
     const candidate = await fetchLrclibLyrics({
       title: "Never Gonna Give You Up",
