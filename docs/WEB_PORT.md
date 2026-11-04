@@ -105,7 +105,7 @@ and use:
 # build command
 corepack enable && pnpm install --frozen-lockfile && VITE_API_URL=/__liner pnpm build:web && node scripts/emit-sites-worker.mjs
 # deploy command
-npx wrangler deploy --config wrangler.deploy.jsonc
+npx wrangler deploy
 ```
 
 The free plan allows 10 ms of CPU per request, so the media relay is the tight
