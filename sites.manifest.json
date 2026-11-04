@@ -1,0 +1,18 @@
+{
+  "entrypoint": "index.mjs",
+  "compatibilityDate": "2026-11-04",
+  "modules": [
+    {
+      "name": "index.mjs",
+      "type": "esm",
+      "path": "./worker/index.mjs"
+    },
+    {
+      "name": "signer.wasm",
+      "type": "wasm",
+      "path": "./worker/signer.wasm"
+    }
+  ],
+  "assetsDirectory": "./dist-web",
+  "spa": false
+}

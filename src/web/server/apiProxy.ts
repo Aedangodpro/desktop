@@ -67,6 +67,15 @@ const SIGNATURE_HEADERS = new Set([
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 
+/**
+ * The API answers the desktop client's Electron user agent and refuses browser
+ * agents with a bare `403 Forbidden`, so a browser-originated request must be
+ * presented as the desktop client. Signature checks come after this gate.
+ */
+export const DESKTOP_API_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Liner/0.2.12 Chrome/138.0.0.0 Electron/44.9.3 Safari/537.36";
+
 function readRequestBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -107,6 +116,7 @@ function requestHeaders(
     headers[lower] = Array.isArray(value) ? value.join(", ") : value;
   }
   headers["host"] = new URL(target).host;
+  headers["user-agent"] = DESKTOP_API_USER_AGENT;
   headers["x-liner-signature"] = signed.signature;
   headers["x-liner-timestamp"] = String(signed.timestamp);
   headers["x-liner-nonce"] = signed.nonce;

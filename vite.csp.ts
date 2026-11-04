@@ -5,6 +5,8 @@ function contentSecurityPolicy(isDev: boolean): string {
     "'self'",
     "'unsafe-eval'",
     "'wasm-unsafe-eval'",
+    // Injected by Cloudflare at the edge for hosted builds (Web Analytics).
+    "https://static.cloudflareinsights.com",
     ...(isDev ? ["'unsafe-inline'"] : []),
   ];
   return [

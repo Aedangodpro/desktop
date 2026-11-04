@@ -39,6 +39,7 @@ import { createTranslatorSync, getStoredLocale } from "@/languages";
 import type { Track } from "@/shared/types";
 import { isLocalTrackId } from "@/shared/media/local";
 import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
+import { getAuthSession } from "@/shared/api/auth-session";
 import { readSavedLyrics } from "@/shared/media/saved";
 import { loadAmbientScript } from "@/shared/media/ambient";
 import { STREAMS_REFUSED_MESSAGE } from "@/shared/youtube";
@@ -1177,6 +1178,32 @@ class PlayerEngine {
     }
     // youtube refusing every stream is about the connection (vpn, proxy, flagged ip), not this track
     const refused = info.message.startsWith(STREAMS_REFUSED_MESSAGE);
+    // In a browser, signed-out playback has no Liner stream and the YouTube
+    // fallback is refused from the hosted network. Skipping the whole queue
+    // cannot succeed, so stop once and point at the account that unlocks R2.
+    if (refused && IS_WEB_TARGET && !getAuthSession()?.accessToken) {
+      log(
+        "yellow",
+        "playback",
+        "web playback needs a Liner account — stopping instead of skipping",
+      );
+      showToast(translate("player.web_sign_in_title"), "error", {
+        id: "web-playback-sign-in",
+        description: translate("player.web_sign_in_description"),
+        action: {
+          label: translate("player.web_sign_in_action"),
+          onClick: () => {
+            window.location.hash = "#/login";
+          },
+        },
+      });
+      this.consecutiveAutoSkips = 0;
+      this.stopPlayback();
+      store.setStatus("idle");
+      store.setPosition(0);
+      store.setDuration(0);
+      return;
+    }
     noteYoutubeTrouble(refused ? "refused" : "failed");
     const refusedToast = {
       description: translate("player.youtube_refused_description"),
