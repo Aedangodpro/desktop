@@ -108,6 +108,10 @@ corepack enable && pnpm install --frozen-lockfile && pnpm build:web
 npx wrangler deploy
 ```
 
+The generated `worker/index.mjs` and `worker/signer.wasm` are committed, so the
+deploy always has an entry point even if the host's build command does not run
+the emitter; `pnpm build:web` regenerates both.
+
 The free plan allows 10 ms of CPU per request, so the media relay is the tight
 part: it streams upstream audio in 256 KiB chunks. If playback is terminated on
 the free plan, that limit (not the code) is the cause.
