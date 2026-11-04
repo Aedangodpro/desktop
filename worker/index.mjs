@@ -476,8 +476,22 @@ async function handleInnertube(request, url) {
  */
 const IMMUTABLE_ASSET = /^\/assets\//;
 
+/**
+ * Client routes (/search, /library, ...) are not files. Only a real navigation
+ * gets index.html; a missing script or image keeps its 404 so a broken build
+ * stays visible instead of being masked by the app shell.
+ */
+function isNavigation(request) {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
 async function serveAsset(request, env, url) {
-  const response = await env.ASSETS.fetch(request);
+  let response = await env.ASSETS.fetch(request);
+  if (response.status === 404 && isNavigation(request)) {
+    const index = await env.ASSETS.fetch(new URL("/index.html", url.origin));
+    if (index.status === 200) response = index;
+  }
   if (response.status !== 200 || !IMMUTABLE_ASSET.test(url.pathname)) {
     return response;
   }

@@ -14,8 +14,8 @@
     // Without this the asset layer answers before the worker, so the relay
     // endpoints and the immutable asset headers never run.
     "run_worker_first": true,
-    // Client-side routes such as /search must render on a cold load.
-    "not_found_handling": "single-page-application"
+    // SPA fallback lives in the worker, so missing files still 404.
+    "not_found_handling": "none"
   },
   "observability": { "enabled": true }
 }

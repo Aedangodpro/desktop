@@ -62,6 +62,14 @@ async function run() {
   assert.match(asset.headers.get("content-type") ?? "", /javascript/);
   console.log("built asset served: ok");
 
+  const spa = await fetch(`${BASE}/search?q=test`, {
+    headers: { accept: "text/html" },
+  });
+  assert.equal(spa.status, 200);
+  assert.match(spa.headers.get("content-type") ?? "", /text\/html/);
+  assert.match(await spa.text(), /id="root"/);
+  console.log("SPA route falls back to index.html: ok");
+
   const missing = await fetch(`${BASE}/does-not-exist.js`);
   assert.equal(missing.status, 404);
   console.log("unknown asset 404: ok");
