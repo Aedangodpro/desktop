@@ -470,6 +470,22 @@ async function handleInnertube(request, url) {
   return new Response(upstream.body, { status: upstream.status, headers: out });
 }
 
+/**
+ * Hashed files never change, so the browser may keep them instead of
+ * revalidating on every visit. Errors are left uncached.
+ */
+const IMMUTABLE_ASSET = /^\/assets\//;
+
+async function serveAsset(request, env, url) {
+  const response = await env.ASSETS.fetch(request);
+  if (response.status !== 200 || !IMMUTABLE_ASSET.test(url.pathname)) {
+    return response;
+  }
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "public, max-age=31536000, immutable");
+  return new Response(response.body, { status: 200, headers });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -491,7 +507,7 @@ export default {
       });
     }
 
-    if (env?.ASSETS) return env.ASSETS.fetch(request);
+    if (env?.ASSETS) return serveAsset(request, env, url);
     return new Response("Not found", { status: 404 });
   },
 };

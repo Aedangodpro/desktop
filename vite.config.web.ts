@@ -224,6 +224,20 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       input: path.resolve(import.meta.dirname, SHELL_HTML),
+      output: {
+        // Split the invariant vendor code so a deploy only invalidates the
+        // app chunks, and the heavy YouTube client is fetched separately.
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("youtubei.js")) return "vendor-youtube";
+          if (id.includes("framer-motion")) return "vendor-motion";
+          if (id.includes("@mingcute") || id.includes("@solar-icons"))
+            return "vendor-icons";
+          if (id.includes("react-router") || id.includes("/react-dom/") || id.includes("/react/"))
+            return "vendor-react";
+          return undefined;
+        },
+      },
     },
   },
 });
