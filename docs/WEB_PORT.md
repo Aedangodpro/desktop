@@ -103,7 +103,7 @@ and use:
 
 ```sh
 # build command
-corepack enable && pnpm install --frozen-lockfile && VITE_API_URL=/__liner pnpm build:web && node scripts/emit-sites-worker.mjs
+corepack enable && pnpm install --frozen-lockfile && pnpm build:web
 # deploy command
 npx wrangler deploy
 ```

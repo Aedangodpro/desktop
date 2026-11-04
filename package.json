@@ -14,7 +14,7 @@
     "dev": "vite",
     "dev:web": "vite --config vite.config.web.ts --mode web",
     "build": "tsc -b && vite build",
-    "build:web": "tsc -b && vite build --config vite.config.web.ts --mode web",
+    "build:web": "tsc -b && vite build --config vite.config.web.ts --mode web && node scripts/emit-sites-worker.mjs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "prettier --write .",
