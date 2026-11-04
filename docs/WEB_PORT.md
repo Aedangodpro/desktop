@@ -108,6 +108,9 @@ corepack enable && pnpm install --frozen-lockfile && pnpm build:web
 npx wrangler deploy
 ```
 
+Wrangler runs `npm run build:web` itself before packaging, so the dashboard's
+build command can stay at its default (even one that builds Electron).
+
 The generated `worker/index.mjs` and `worker/signer.wasm` are committed, so the
 deploy always has an entry point even if the host's build command does not run
 the emitter; `pnpm build:web` regenerates both.
