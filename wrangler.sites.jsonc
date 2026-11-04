@@ -3,6 +3,11 @@
   "name": "liner-sites-local",
   "main": "worker/index.mjs",
   "compatibility_date": "2026-11-04",
-  "assets": { "directory": "./dist-web", "binding": "ASSETS" },
+  "assets": {
+    "directory": "./dist-web",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
   "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"] }]
 }
