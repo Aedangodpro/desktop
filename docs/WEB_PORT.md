@@ -93,6 +93,25 @@ deployment is the Cloudflare Worker (`worker/index.template.mjs`, emitted by
 behind Freebuff Sites. Any other host needs an equivalent Node/edge function
 that reuses `createApiProxy` and `createMediaRelay`.
 
+### Cloudflare Workers
+
+`wrangler.deploy.jsonc` deploys the same worker and `dist-web/` assets to a
+`*.workers.dev` hostname on the Workers free plan (no credit card, 100,000
+requests/day, static asset requests unlimited). Connect the repository with
+Workers Builds in the dashboard (Workers & Pages -> Create -> Connect to Git)
+and use:
+
+```sh
+# build command
+corepack enable && pnpm install --frozen-lockfile && VITE_API_URL=/__liner pnpm build:web && node scripts/emit-sites-worker.mjs
+# deploy command
+npx wrangler deploy --config wrangler.deploy.jsonc
+```
+
+The free plan allows 10 ms of CPU per request, so the media relay is the tight
+part: it streams upstream audio in 256 KiB chunks. If playback is terminated on
+the free plan, that limit (not the code) is the cause.
+
 ## Sessions
 
 - Tokens are stored under `liner_auth_session` in `localStorage`, written by
