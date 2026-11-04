@@ -85,6 +85,14 @@ to the hosts above (no signing needed, keep `Range` and the status), or nothing
 plays. Do not expose the signing key to the client, and do not point
 `VITE_API_URL` at the API host directly.
 
+A static host alone cannot run this app. GitHub Pages and a static Vercel
+deployment have no server half, so `/__liner/*` returns their HTML page and the
+app can only report that the deployment is not connected. The working
+deployment is the Cloudflare Worker (`worker/index.template.mjs`, emitted by
+`scripts/emit-sites-worker.mjs`, smoke-tested by `scripts/test-sites-worker.mjs`)
+behind Freebuff Sites. Any other host needs an equivalent Node/edge function
+that reuses `createApiProxy` and `createMediaRelay`.
+
 ## Sessions
 
 - Tokens are stored under `liner_auth_session` in `localStorage`, written by

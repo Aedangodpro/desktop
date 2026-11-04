@@ -58,7 +58,7 @@ function offlineModeAction() {
   };
 }
 
-import { getApiBaseUrl } from "./baseUrl";
+import { getApiBaseUrl, isSameOriginPath } from "./baseUrl";
 import {
   PowTimeoutError,
   SUPPORTED_POW_ALGORITHM,
@@ -214,6 +214,26 @@ export function toMaxQualityAvatarUrl(url: string | undefined): string {
 
 const inFlightGetRequests = new Map<string, Promise<unknown>>();
 
+/**
+ * A static host answers the proxy path with its own HTML page (a 404 document,
+ * or the app shell rewritten to 200). That is a deployment without the server
+ * half of the web build, not a broken internet connection, so it must not be
+ * reported through the network path.
+ */
+function isMissingRelayResponse(res: Response): boolean {
+  if (!IS_WEB_TARGET || !isSameOriginPath(getApiBaseUrl())) return false;
+  const contentType = res.headers?.get?.("content-type") ?? "";
+  return contentType.toLowerCase().includes("text/html");
+}
+
+function missingRelayError(): ApiError {
+  return new ApiError(
+    404,
+    "This deployment has no Liner API relay.",
+    "RELAY_MISSING",
+  );
+}
+
 async function executeRequest<T>(
   path: string,
   init?: RequestInit,
@@ -314,6 +334,17 @@ async function executeRequest<T>(
       });
     }
     throw err;
+  }
+
+  if (isMissingRelayResponse(res)) {
+    telemetry.trackNetwork(
+      method,
+      path,
+      res.status,
+      Math.round(performance.now() - startTime),
+      requestId,
+    );
+    throw missingRelayError();
   }
 
   // sync server time offset from response Date header
@@ -507,6 +538,7 @@ export function resolveApiErrorMessage(
   fallbackKey: string,
 ): string {
   if (err instanceof ApiError) {
+    if (err.code === "RELAY_MISSING") return t("common.error_relay_missing");
     if (err.status === 0) return t("common.error_network");
     if (err.status === 401 || err.status === 403)
       return t("common.error_session_expired");

@@ -181,6 +181,7 @@
     "description_placeholder": "Description (optional)",
     "supported_sources": "Supported sources",
     "error_network": "No connection. Check your internet and try again.",
+    "error_relay_missing": "This deployment has no Liner server, so sign-in and playback cannot work here. Open the hosted build instead.",
     "error_network_title": "Network error",
     "error_server": "Something went wrong on our end. Try again later.",
     "error_server_title": "Server error",
