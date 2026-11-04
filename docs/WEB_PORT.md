@@ -284,3 +284,15 @@ files and LRCLIB lyrics, but sign-in, the online catalog and YouTube playback
 will fail. Deploy `dist-web` behind the Node server (any Node host running
 `pnpm preview:web`), or port those three endpoints to a Worker/Functions runtime
 before treating a purely static host as a full deployment.
+
+## Cloudflare cannot reach the API
+
+`api.tryliner.fun` tarpits requests from Cloudflare Workers and other
+datacenter IPs: the relay's signed fetch hangs until its 30 s timeout and
+returns `502 API_PROXY_UNREACHABLE`. The page, assets and the Innertube/media
+relays work, but sign-in, the cloud library and anything else under
+`/__liner` do not work on Workers.
+
+This is upstream bot protection, not a bug here: the same signed request
+succeeds from a desktop machine, and plain `curl` gets an instant Cloudflare
+403. The desktop build talks to the API directly and is unaffected.
