@@ -1,5 +1,8 @@
 import { InnertubeError, type InnertubeProfile } from "./innertubeClient";
-import { PLAYBACK_PROFILES } from "./playbackProfiles";
+import {
+  PLAYBACK_PROFILES,
+  WEB_PLAYBACK_PROFILES,
+} from "./playbackProfiles";
 import { log } from "@/shared/utils/logger";
 import {
   resetWebRemixSession,
@@ -14,9 +17,11 @@ export type { ResolvedAudioStream } from "./innertubeAudioFormats";
 
 export {
   ANDROID_VR_PROFILE,
+  IOS_PROFILE,
   PLAYBACK_PROFILES,
   TV_PROFILE,
   VISIONOS_PROFILE,
+  WEB_PLAYBACK_PROFILES,
 } from "./playbackProfiles";
 
 let lastWorkingProfile: InnertubeProfile | null = null;
@@ -117,18 +122,10 @@ export async function resolveDirectAudioStream(
   // profiles that need the YouTube player script cannot load it cross-origin in
   // a browser. Skip both there instead of burning a doomed attempt per track.
   const webRemixAllowed = !options.profiles && !IS_WEB_TARGET;
-  const available = (options.profiles ?? PLAYBACK_PROFILES).filter(
-    (profile) => !IS_WEB_TARGET || !profile.requiresJsPlayer,
-  );
-  // ANDROID_VR is the profile that reliably hands a browser direct audio urls;
-  // trying it first saves a round trip on every track.
-  const profiles = IS_WEB_TARGET
-    ? [...available].sort(
-        (a, b) =>
-          Number(b.clientName === "ANDROID_VR") -
-          Number(a.clientName === "ANDROID_VR"),
-      )
-    : available;
+  const profiles = (
+    options.profiles ??
+    (IS_WEB_TARGET ? WEB_PLAYBACK_PROFILES : PLAYBACK_PROFILES)
+  ).filter((profile) => !IS_WEB_TARGET || !profile.requiresJsPlayer);
   if (webRemixAllowed && Date.now() >= webRemixRetryAt) {
     const stream = await resolveViaWebRemix(videoId, options, failures);
     if (stream) return stream;
@@ -154,6 +151,15 @@ export async function resolveDirectAudioStream(
       `${STREAMS_REFUSED_MESSAGE} (${failures.join("; ")}).`,
       403,
     );
+  if (IS_WEB_TARGET) {
+    // A browser cannot sign in to YouTube, so the bot-check reason would send
+    // the listener to a wall the page cannot cross. Report a plain failure;
+    // the player then skips instead of pausing on a sign-in prompt.
+    throw new InnertubeError(
+      "This track cannot be played in this browser right now.",
+      403,
+    );
+  }
   throw new InnertubeError(
     `Direct audio resolution failed (${failures.join("; ")}).`,
     502,

@@ -76,6 +76,19 @@ PO token minted by the main process, and the player script cannot be loaded
 cross-origin. Playback falls through to the profiles that hand out direct audio
 URLs, which the relay then serves.
 
+### YouTube playback without a YouTube account
+
+The browser build never asks for a YouTube sign-in. Audio is resolved through
+the clients that hand direct stream urls to anonymous callers (`VISIONOS`,
+`IOS`, `ANDROID_VR`) and fetched through `/__media`. `visitorData` is what
+keeps those calls out of YouTube's "confirm you're not a bot" check:
+`src/shared/youtube/session/visitorSession.ts` reads it from `sw.js_data` and
+falls back to `/youtubei/v1/visitor_id` when that document omits it.
+
+A bot check that still reaches the player becomes a normal "track unavailable"
+error and the queue skips. The YouTube sign-in prompt is desktop-only, where the
+TV device flow can actually finish; a tab cannot.
+
 ### Deploying
 
 `dist-web/` is static, but the app is **not** functional without the proxies.

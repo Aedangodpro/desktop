@@ -32,6 +32,22 @@ export const VISIONOS_PROFILE: InnertubeProfile = {
   },
 };
 
+export const IOS_PROFILE: InnertubeProfile = {
+  clientName: "IOS",
+  clientVersion: "20.10.4",
+  clientIdHeader: "5",
+  origin: "https://www.youtube.com",
+  userAgent:
+    "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
+  includeUserAgentInContext: true,
+  extraContext: {
+    osName: "iPhone",
+    osVersion: "18.3.2.22D82",
+    deviceMake: "Apple",
+    deviceModel: "iPhone16,2",
+  },
+};
+
 export const ANDROID_VR_PROFILE: InnertubeProfile = {
   clientName: "ANDROID_VR",
   clientVersion: "1.65.10",
@@ -52,5 +68,18 @@ export const ANDROID_VR_PROFILE: InnertubeProfile = {
 export const PLAYBACK_PROFILES: readonly InnertubeProfile[] = [
   TV_PROFILE,
   VISIONOS_PROFILE,
+  ANDROID_VR_PROFILE,
+];
+
+/**
+ * The browser build cannot mint a PO token or run YouTube's player script, so
+ * it may only ask the clients that hand direct audio urls to anonymous
+ * callers. VISIONOS and IOS come first: their urls keep working when the relay
+ * fetches the bytes from a different Cloudflare address, while ANDROID_VR urls
+ * are sometimes bound to the address that asked and answer 403 mid-track.
+ */
+export const WEB_PLAYBACK_PROFILES: readonly InnertubeProfile[] = [
+  VISIONOS_PROFILE,
+  IOS_PROFILE,
   ANDROID_VR_PROFILE,
 ];

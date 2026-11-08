@@ -7,6 +7,7 @@ import { isStandaloneAudioFile } from "@/shared/storage/audioFormat";
 import type { Track } from "@/shared/types";
 import { markLinerStreamFailed } from "@/shared/media/liner/linerPlayback";
 import { isLocalTrackId } from "@/shared/media/local";
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import { isSavedTrack } from "@/shared/media/saved";
 import { pitchShifter } from "./pitchShifter";
 import { FLAT_EQ, isEqActive } from "./equalizer";
@@ -967,6 +968,7 @@ export class PlayerRuntime {
       }
 
       if (
+        !IS_WEB_TARGET &&
         isBotCheckError(error) &&
         !isYoutubeSignedIn() &&
         !isYoutubeSignInDeclined() &&

@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "@/languages";
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import { cn } from "@/shared/lib";
 import { useYoutubeSignInStore } from "../store/youtubeSignInStore";
 import { useYoutubeSignInPrompt } from "../hooks/useYoutubeSignInPrompt";
@@ -21,7 +22,7 @@ export default function YoutubeSignInNotice() {
   const retry = useYoutubeSignInStore((state) => state.retry);
   const failed = phase === "error";
 
-  if (typeof document === "undefined") return null;
+  if (IS_WEB_TARGET || typeof document === "undefined") return null;
 
   return createPortal(
     <AnimatePresence>

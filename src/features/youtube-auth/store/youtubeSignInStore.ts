@@ -8,6 +8,7 @@ import {
   type TvDeviceCode,
 } from "@/shared/youtube";
 import { isAbortError } from "@/shared/utils/abort";
+import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import { playerRuntime, usePlayerStore } from "@/features/player";
 import { announceYoutubeConnected } from "../lib/announceConnected";
 
@@ -75,7 +76,8 @@ export const useYoutubeSignInStore = create<YoutubeSignInState>((set, get) => {
     code: null,
     reason: "playback",
     show: (reason = "playback") => {
-      if (get().open || isYoutubeSignedIn()) return;
+      // A tab cannot finish YouTube's TV sign-in flow; never open that wall.
+      if (IS_WEB_TARGET || get().open || isYoutubeSignedIn()) return;
       set({ open: true, reason });
       void run();
     },
