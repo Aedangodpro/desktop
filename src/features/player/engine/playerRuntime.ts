@@ -30,6 +30,11 @@ export class PlayerRuntime {
   private audio: HTMLAudioElement;
   private currentTrackId: string | null = null;
   private loadEpoch = 0;
+  // the track whose load is actually running, and its promise. Separate from
+  // currentTrackId because that is set before the stream is ready and stays set
+  // after a load fails; this pair is what deduplicates concurrent selections.
+  private loadingTrackId: string | null = null;
+  private currentLoadPromise: Promise<void> | null = null;
   private loadAbortController: AbortController | null = null;
   private isResetting = false;
   private fadeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -463,6 +468,10 @@ export class PlayerRuntime {
     return this.currentTrackId;
   }
 
+  public isLoadInFlightFor(trackId: string): boolean {
+    return this.loadingTrackId === trackId && this.currentLoadPromise !== null;
+  }
+
   public hasLoadedSourceFor(trackId: string): boolean {
     const isExpired =
       this.currentSessionExpiresAt !== null &&
@@ -665,6 +674,8 @@ export class PlayerRuntime {
     this.currentSessionExpiresAt = null;
     this.recoveryAttempts = 0;
     this.recoveryHoldUntilMs = null;
+    this.loadingTrackId = null;
+    this.currentLoadPromise = null;
     this.safeResetAudioElement();
     usePlayerStore.getState().setStatus("paused");
     log("cyan", "playback", "pending load cancelled");
@@ -677,6 +688,9 @@ export class PlayerRuntime {
 
     const cached = await linerDb.getAudio(track.id);
     if (cached) return;
+    // the user may have selected this track while the cache lookup was in
+    // flight; its foreground load owns the bandwidth now
+    if (this.currentTrackId === track.id) return;
 
     this.preloadAbortController?.abort();
     const controller = new AbortController();
@@ -754,7 +768,38 @@ export class PlayerRuntime {
     }
   }
 
-  public async loadAndPlay(
+  public loadAndPlay(
+    track: Track,
+    startPositionMs: number = 0,
+    bypassCache: boolean = false,
+  ): Promise<void> {
+    // selecting the same track again while it is still resolving (double click,
+    // track row + play button, retry) must not abort the stream that is already
+    // on its way and start over from zero
+    if (
+      !bypassCache &&
+      this.loadingTrackId === track.id &&
+      this.currentLoadPromise
+    ) {
+      return this.currentLoadPromise;
+    }
+
+    const promise = this.performLoadAndPlay(
+      track,
+      startPositionMs,
+      bypassCache,
+    ).finally(() => {
+      if (this.currentLoadPromise === promise) {
+        this.currentLoadPromise = null;
+        this.loadingTrackId = null;
+      }
+    });
+    this.loadingTrackId = track.id;
+    this.currentLoadPromise = promise;
+    return promise;
+  }
+
+  private async performLoadAndPlay(
     track: Track,
     startPositionMs: number = 0,
     bypassCache: boolean = false,
@@ -768,9 +813,19 @@ export class PlayerRuntime {
       this.recoveryHoldUntilMs = null;
     }
 
-    if (this.preloadingTrackId === track.id && this.preloadingPromise) {
-      await this.preloadingPromise;
-    } else if (this.preloadingTrackId && this.preloadingTrackId !== track.id) {
+    if (this.preloadingTrackId) {
+      // A preload downloads the whole file and has no deadline. Waiting for it
+      // here meant selecting the track that was being preloaded could sit on
+      // the old song (or silence) until that download finished. Drop it and let
+      // the foreground progressive resolve start immediately; the cache it
+      // would have filled is not worth a stalled play button.
+      if (this.preloadingTrackId === track.id) {
+        log(
+          "cyan",
+          "playback",
+          `selected a track mid-preload — starting it now (${track.title})`,
+        );
+      }
       this.preloadAbortController?.abort();
       this.preloadAbortController = null;
       this.preloadingTrackId = null;
@@ -1027,6 +1082,8 @@ export class PlayerRuntime {
     const epoch = ++this.loadEpoch;
     this.loadAbortController?.abort();
     this.loadAbortController = null;
+    this.loadingTrackId = null;
+    this.currentLoadPromise = null;
     usePlayerStore.getState().setStatus("paused");
     log("cyan", "audio", "pause requested (fading out)");
 
@@ -1037,6 +1094,15 @@ export class PlayerRuntime {
   }
 
   public resume() {
+    // A resume during a load used to bump the epoch and abort the stream that
+    // was already resolving, so pressing play made the wait start over. The
+    // load owns playback until it settles or times out.
+    const pendingTrack = usePlayerStore.getState().currentTrack;
+    if (pendingTrack && this.isLoadInFlightFor(pendingTrack.id)) {
+      log("cyan", "audio", "resume ignored — the track is already loading");
+      return;
+    }
+
     const epoch = ++this.loadEpoch;
     this.loadAbortController?.abort();
     this.loadAbortController = null;
@@ -1047,7 +1113,7 @@ export class PlayerRuntime {
     this.applyPlaybackRateAndPitch();
     log("cyan", "audio", "resume requested (fading in)");
 
-    const currentTrack = usePlayerStore.getState().currentTrack;
+    const currentTrack = pendingTrack;
     const isExpired =
       this.currentSessionExpiresAt !== null &&
       Date.now() >= this.currentSessionExpiresAt - 15_000;

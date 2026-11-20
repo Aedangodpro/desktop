@@ -678,6 +678,14 @@ class PlayerEngine {
 
   public resume(): void {
     const store = usePlayerStore.getState();
+    // the load is already resolving: restarting it here aborted the stream and
+    // made a slow start look like a dead play button
+    if (
+      store.currentTrack &&
+      playerRuntime?.isLoadInFlightFor(store.currentTrack.id)
+    ) {
+      return;
+    }
     if (playerRuntime) {
       if (
         store.currentTrack &&
@@ -693,7 +701,10 @@ class PlayerEngine {
 
   public togglePlayPause(): void {
     const store = usePlayerStore.getState();
-    if (store.status === "playing" || store.status === "loading") {
+    // "loading" is not "playing": pausing there cancelled the in-flight load,
+    // so the button that said Play quietly stopped the track instead.
+    if (store.status === "loading") return;
+    if (store.status === "playing") {
       this.pause();
     } else {
       this.resume();

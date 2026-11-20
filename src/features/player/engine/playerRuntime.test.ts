@@ -216,6 +216,113 @@ describe("PlayerRuntime audio caching", () => {
     expect(usePlayerStore.getState().status).toBe("playing");
   });
 
+  it("only the last track starts when tracks are switched rapidly", async () => {
+    const gates = new Map<string, (stream: unknown) => void>();
+    mocks.resolvePlaybackStream.mockImplementation(
+      (selected: { id: string }) =>
+        new Promise((resolve) => {
+          gates.set(selected.id, resolve);
+        }),
+    );
+    const playSpy = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue();
+    const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
+      .audio;
+    Object.defineProperty(audio, "readyState", { value: 4, configurable: true });
+
+    const first: Track = { ...track, id: "rapid-a", title: "A" };
+    const second: Track = { ...track, id: "rapid-b", title: "B" };
+    const third: Track = { ...track, id: "rapid-c", title: "C" };
+
+    const loads = [
+      playerRuntime!.loadAndPlay(first),
+      playerRuntime!.loadAndPlay(second),
+      playerRuntime!.loadAndPlay(third),
+    ];
+    // the superseded loads bail out before they resolve a stream, so only the
+    // last selected track ever reaches the network
+    await vi.waitFor(() => expect(gates.size).toBe(1));
+    expect(gates.has("rapid-c")).toBe(true);
+    gates.get("rapid-c")!(urlStream);
+    await Promise.all(loads);
+
+    expect(usePlayerStore.getState().status).toBe("playing");
+    expect(playerRuntime!.getCurrentTrackId()).toBe("rapid-c");
+    expect(audio.getAttribute("src")).toBe(urlStream.url);
+    // the superseded resolves must not have started a second element play
+    expect(playSpy).toHaveBeenCalledTimes(1);
+    Reflect.deleteProperty(audio, "readyState");
+  });
+
+  it("does not restart a track that is already loading", async () => {
+    let release!: (stream: unknown) => void;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const resolveSpy = mocks.resolvePlaybackStream.mockReturnValue(gate);
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
+      .audio;
+    Object.defineProperty(audio, "readyState", { value: 4, configurable: true });
+    const selected: Track = { ...track, id: "repeat-click", title: "Repeat" };
+
+    const first = playerRuntime!.loadAndPlay(selected);
+    const second = playerRuntime!.loadAndPlay(selected);
+    expect(second).toBe(first);
+    await vi.waitFor(() => expect(resolveSpy).toHaveBeenCalledTimes(1));
+
+    release(urlStream);
+    await Promise.all([first, second]);
+    expect(usePlayerStore.getState().status).toBe("playing");
+    Reflect.deleteProperty(audio, "readyState");
+  });
+
+  it("starts a selected track immediately even while its preload is still downloading", async () => {
+    let releasePreload!: (stream: unknown) => void;
+    const preloadGate = new Promise((resolve) => {
+      releasePreload = resolve;
+    });
+    const resolveSpy = mocks.resolvePlaybackStream.mockImplementation(
+      (_track: unknown, _signal: unknown, options?: { progressive?: boolean }) =>
+        options?.progressive ? Promise.resolve(urlStream) : preloadGate,
+    );
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
+      .audio;
+    Object.defineProperty(audio, "readyState", { value: 4, configurable: true });
+
+    const preloaded: Track = {
+      ...track,
+      id: "preload-blocked-6",
+      title: "Preloading",
+    };
+    const preload = playerRuntime!.preloadTrack(preloaded);
+    await vi.waitFor(() => expect(resolveSpy).toHaveBeenCalledTimes(1));
+
+    try {
+      const outcome = await Promise.race([
+        playerRuntime!.loadAndPlay(preloaded).then(() => "played" as const),
+        new Promise<"blocked">((resolve) =>
+          setTimeout(() => resolve("blocked"), 1000),
+        ),
+      ]);
+
+      expect(outcome).toBe("played");
+      expect(usePlayerStore.getState().status).toBe("playing");
+    } finally {
+      releasePreload({
+        blob: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+        codec: "opus",
+        bitrate: 128000,
+        expiresAtMs: null,
+      });
+      await preload.catch(() => {});
+      Reflect.deleteProperty(audio, "readyState");
+    }
+  }, 10_000);
+
   it("fetches, plays, and saves to linerDb on cache miss", async () => {
     const playSpy = vi
       .spyOn(HTMLMediaElement.prototype, "play")

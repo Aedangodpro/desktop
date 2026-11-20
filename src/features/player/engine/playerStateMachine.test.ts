@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { playerEngine, usePlayerStore } from "./playerEngine";
 import { playerRuntime } from "./playerRuntime";
 import type { Track } from "@/shared/types";
@@ -27,6 +27,10 @@ describe("Player State Machine", () => {
     });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("starts playback and updates state immediately", async () => {
     const track1 = mockTrack("1", "First Song");
     const track2 = mockTrack("2", "Second Song");
@@ -40,6 +44,32 @@ describe("Player State Machine", () => {
     expect(state.status).toBe("loading");
     expect(state.positionMs).toBe(0);
     expect(state.durationMs).toBe(180000);
+  });
+
+  it("pressing play while a track is loading neither cancels nor restarts the load", async () => {
+    const track = mockTrack("loading-1", "Still Loading");
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const loadSpy = vi
+      .spyOn(playerRuntime!, "loadAndPlay")
+      .mockReturnValue(pending);
+    const cancelSpy = vi
+      .spyOn(playerRuntime!, "cancelPendingLoad")
+      .mockImplementation(() => {});
+    await playerEngine.playTrack(track, [track]);
+    expect(usePlayerStore.getState().status).toBe("loading");
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+
+    playerEngine.togglePlayPause();
+
+    expect(cancelSpy).not.toHaveBeenCalled();
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    expect(usePlayerStore.getState().status).toBe("loading");
+
+    release();
+    await pending;
   });
 
   it("handles fast skipping (rapid next clicks) with instantaneous UI transitions", async () => {
