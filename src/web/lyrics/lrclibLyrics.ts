@@ -1,4 +1,9 @@
 import type { LyricsCandidate } from "@/shared/contracts/lyrics";
+import { cleanLyricsTitle } from "./lyricsTitle";
+import type { LyricsHint, LyricsProvider } from "./types";
+
+export { cleanLyricsTitle };
+export type { LyricsHint };
 
 /**
  * LRCLIB provider for the browser build.
@@ -19,27 +24,6 @@ interface LrclibResult {
   instrumental?: boolean;
   plainLyrics?: string | null;
   syncedLyrics?: string | null;
-}
-
-export interface LyricsHint {
-  title: string;
-  artist: string;
-  durationMs?: number;
-}
-
-// YouTube titles carry release noise that LRCLIB does not index
-const NOISE =
-  /\b(official|video|audio|lyric|lyrics|visuali[sz]er|remaster|remastered|hd|hq|4k|mv|m\/v|explicit)\b/i;
-
-export function cleanLyricsTitle(title: string): string {
-  const stripped = title.replace(/\s*[[(][^\])]*[\])]/g, (segment) =>
-    NOISE.test(segment) ? "" : segment,
-  );
-  const withoutSuffix = stripped.replace(
-    /\s*[-–]\s*(official|video|audio|lyrics?|visuali[sz]er).*$/i,
-    "",
-  );
-  return withoutSuffix.trim() || title.trim();
 }
 
 function toCandidate(result: LrclibResult): LyricsCandidate | null {
@@ -99,6 +83,12 @@ function closest(
     );
   })[0]!;
 }
+
+export const lrclibProvider: LyricsProvider = {
+  id: "LRCLIB",
+  priority: 20,
+  fetchLyrics: (hint, signal) => fetchLrclibLyrics(hint, signal),
+};
 
 export async function fetchLrclibLyrics(
   hint: LyricsHint,

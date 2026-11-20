@@ -1,4 +1,4 @@
-import { fetchLrclibLyrics } from "@/web/lyrics/lrclibLyrics";
+import { resolveLyrics } from "@/web/lyrics";
 import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import {
   getAuthSession,
@@ -1362,7 +1362,8 @@ export const api = {
   },
 };
 
-// The browser build has no API access, so lyrics come straight from LRCLIB.
+// The browser build has no API access, so lyrics come straight from the
+// public sources in `src/web/lyrics` (LRCMUX first, LRCLIB as the fallback).
 async function* streamWebLyrics(
   hint: { title: string; artist: string; durationMs?: number } | undefined,
   signal?: AbortSignal,
@@ -1371,7 +1372,8 @@ async function* streamWebLyrics(
     yield { type: "done", cached: false, status: "not_found" };
     return;
   }
-  const candidate = await fetchLrclibLyrics(hint, signal).catch(() => null);
+  const resolved = await resolveLyrics(hint, signal).catch(() => null);
+  const candidate = resolved?.candidate ?? null;
   if (!candidate) {
     yield { type: "done", cached: false, status: "not_found" };
     return;

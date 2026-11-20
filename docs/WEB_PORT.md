@@ -172,19 +172,31 @@ prefixed `local_` so they can never collide with server ids.
 
 Lyrics normally stream from `/v1/tracks/:id/lyrics` as SSE. That path is part
 of the API and unreachable for a browser (and refuses every call with `403`
-today), so in `--mode web` `api.streamLyrics` delegates to
-`src/web/lyrics/lrclibLyrics.ts` instead:
+today), so in `--mode web` `api.streamLyrics` delegates to the public sources
+in `src/web/lyrics`:
 
-- `GET https://lrclib.net/api/get` with the cleaned title, artist and duration,
-- fall back to `/api/search` and pick the synced result closest to the track
-  length,
-- emit the same `provider` + `done` events, so `playerEngine`, the cache, the
-  offsets and the lyrics canvas work unchanged.
+- `resolveLyrics.ts` asks providers in priority order and emits the same
+  `provider` + `done` events, so `playerEngine`, the cache, the offsets and the
+  lyrics canvas work unchanged.
+- `lrcmuxLyrics.ts` — LRCMUX (`GET https://api.lrcmux.dev/get?format=json`)
+  aggregates Deezer, KuGou and YouTube Music. Word-level results are converted
+  to the richsync JSON the parser already understands (it keeps each word's
+  own end time, which LRC text cannot express), line-level results to LRC,
+  everything else to plain text. LRCMUX answers `429` with `Retry-After` at 60
+  requests a minute; the client parks itself for that window and the request
+  falls through to LRCLIB. A timed result whose track length differs from the
+  playing track by more than 8 s (or 5%) is thrown away as a different
+  recording, because its timings would be seconds out of sync.
+- `lrclibLyrics.ts` — LRCLIB (`GET https://lrclib.net/api/get`, then
+  `/api/search` with the synced result closest to the track length).
 
-LRCLIB answers with `access-control-allow-origin: *`, so no relay is involved.
-Titles are cleaned first (`(Official Video)`, `[Remastered]`, `- Official Audio`)
-because YouTube titles carry release noise LRCLIB does not index. The desktop
-build keeps using the API stream.
+The first provider with synced lyrics wins. Plain text is held while the
+remaining providers are tried, so a later line-synced result still beats it;
+if nobody has sync the plain text is shown, and if nobody has lyrics the UI
+reports none. Both APIs answer with `access-control-allow-origin: *`, so no
+relay is involved. Titles are cleaned first (`(Official Video)`,
+`[Remastered]`, `- Official Audio`) because YouTube titles carry release noise
+the databases do not index. The desktop build keeps using the API stream.
 
 ## Web-only UI
 

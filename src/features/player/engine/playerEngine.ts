@@ -39,6 +39,7 @@ import { createTranslatorSync, getStoredLocale } from "@/languages";
 import type { Track } from "@/shared/types";
 import { isLocalTrackId } from "@/shared/media/local";
 import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
+import { isWebLyricsProvider } from "@/web/lyrics";
 import { getAuthSession } from "@/shared/api/auth-session";
 import { readSavedLyrics } from "@/shared/media/saved";
 import { loadAmbientScript } from "@/shared/media/ambient";
@@ -1453,7 +1454,9 @@ class PlayerEngine {
       try {
         const existing = await linerDb.getLyrics(trackId);
         const unusableCache =
-          existing && IS_WEB_TARGET && existing.activeProvider !== "LRCLIB";
+          existing &&
+          IS_WEB_TARGET &&
+          !isWebLyricsProvider(existing.activeProvider);
         if (existing && !unusableCache) {
           const lastChecked = existing.lastCheckedAt || 0;
           if (Date.now() - lastChecked < SEVEN_DAYS_MS) {
@@ -1605,13 +1608,13 @@ class PlayerEngine {
         cached = null;
       }
     }
-    // In the browser the only reachable provider is LRCLIB, so a candidate
-    // cached from a word/syllable-level provider is stale: it can never be
-    // refreshed or matched again, and it is not what the source would return.
+    // In the browser only the public sources are reachable, so a candidate
+    // cached from an API-only provider is stale: it can never be refreshed or
+    // matched again, and it is not what the source would return.
     if (
       cached?.candidate &&
       IS_WEB_TARGET &&
-      cached.candidate.provider !== "LRCLIB"
+      !isWebLyricsProvider(cached.candidate.provider)
     ) {
       cached = null;
     }
