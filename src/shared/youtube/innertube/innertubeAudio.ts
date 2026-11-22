@@ -118,10 +118,11 @@ export async function resolveDirectAudioStream(
   const failures: string[] = [];
   let profilesTried = 0;
   let profilesRefused = 0;
-  // WEB_REMIX needs a PO token minted by the desktop main process, and the
-  // profiles that need the YouTube player script cannot load it cross-origin in
-  // a browser. Skip both there instead of burning a doomed attempt per track.
-  const webRemixAllowed = !options.profiles && !IS_WEB_TARGET;
+  // WEB_REMIX is the only path with a PO token, and a PO token is the only way
+  // past a bot check on a shared address; the browser mints one in the page and
+  // relays the player script. The profiles that need that script still cannot
+  // run there, so they stay filtered below.
+  const webRemixAllowed = !options.profiles;
   const profiles = (
     options.profiles ??
     (IS_WEB_TARGET ? WEB_PLAYBACK_PROFILES : PLAYBACK_PROFILES)

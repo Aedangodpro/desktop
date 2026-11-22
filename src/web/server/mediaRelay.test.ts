@@ -307,4 +307,44 @@ describe("media relay", () => {
     expect(response.status()).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("relays the BotGuard endpoints the page cannot reach itself", async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response("ok", {
+          status: 200,
+          headers: { "content-type": "text/javascript" },
+        }),
+    );
+    const handle = createMediaRelay();
+
+    const interpreter = mockResponse();
+    await handle(
+      mockRequest("/__yt/www.google.com/js/bg/abc.js"),
+      interpreter.res,
+    );
+    await interpreter.finished;
+    expect(fetchMock.mock.calls[0]![0]).toBe("https://www.google.com/js/bg/abc.js");
+
+    const integrity = mockResponse();
+    await handle(
+      mockRequest(
+        "/__yt/jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa/GenerateIT",
+        { method: "POST", body: "[\"key\",\"response\"]" },
+      ),
+      integrity.res,
+    );
+    await integrity.finished;
+    expect(fetchMock.mock.calls[1]![0]).toBe(
+      "https://jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa/GenerateIT",
+    );
+  });
+
+  it("keeps google.com to the BotGuard interpreter path", async () => {
+    const handle = createMediaRelay();
+    const response = mockResponse();
+    await handle(mockRequest("/__yt/www.google.com/search?q=x"), response.res);
+    expect(response.status()).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

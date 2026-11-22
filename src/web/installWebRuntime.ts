@@ -1,3 +1,9 @@
+import {
+  registerInnertubeFetch,
+  registerPoTokenMinter,
+} from "@/shared/youtube/innertube/webBridges";
+import { innertubeProxyUrl } from "./proxyUrls";
+
 /**
  * Browser shell bootstrap.
  *
@@ -5,6 +11,56 @@
  * concern-free: it never touches application state, it only adapts the document
  * to behave like an application window instead of a page.
  */
+
+/** hosts youtube.js may reach, all of them through `/__yt` on this origin */
+const RELAYED_YOUTUBE_HOSTS = new Set([
+  "www.youtube.com",
+  "music.youtube.com",
+  "youtubei.googleapis.com",
+  "www.google.com",
+  "jnn-pa.googleapis.com",
+]);
+
+/**
+ * youtube.js is written for Node and fetches youtube.com directly, which a page
+ * cannot do. Route its requests through the relay the same way the Innertube
+ * client already does.
+ */
+function relayedYoutubeFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const url =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (RELAYED_YOUTUBE_HOSTS.has(parsed.host)) {
+      const proxied = innertubeProxyUrl(parsed.toString());
+      if (proxied !== parsed.toString()) {
+        return typeof input === "string" || input instanceof URL
+          ? fetch(proxied, init)
+          : fetch(new Request(proxied, input), init);
+      }
+    }
+  } catch {
+    // not a URL the relay knows: leave it alone
+  }
+  return fetch(input, init);
+}
+
+function installYoutubeBridges(): void {
+  registerInnertubeFetch(relayedYoutubeFetch);
+  // BotGuard is only needed once a track has to be resolved, and it is a large
+  // dependency, so it stays out of the first paint.
+  registerPoTokenMinter(async (identifier) => {
+    const { mintWebPoToken } = await import("./youtube/webMinter");
+    return mintWebPoToken(identifier);
+  });
+}
 
 const SPLASH_ID = "boot-splash";
 const SPLASH_SAFETY_TIMEOUT_MS = 12_000;
@@ -66,6 +122,7 @@ export function installWebRuntime(): void {
 
   document.documentElement.setAttribute("data-runtime", "web");
   blockFileNavigation();
+  installYoutubeBridges();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", dismissSplashOnFirstPaint, {

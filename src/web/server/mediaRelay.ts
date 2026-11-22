@@ -39,7 +39,12 @@ const INNERTUBE_HOSTS = new Set([
   "www.youtube.com",
   "music.youtube.com",
   "youtubei.googleapis.com",
+  // BotGuard: the page cannot fetch its interpreter or a PO token cross-origin
+  "jnn-pa.googleapis.com",
 ]);
+
+/** hosts reached for one narrow purpose only */
+const INNERTUBE_PATH_PREFIXES = new Map([["www.google.com", ["/js/bg/"]]]);
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -284,7 +289,8 @@ async function handleInnertube(
   const rest = url.pathname.slice(INNERTUBE_PROXY_PREFIX.length + 1);
   const slash = rest.indexOf("/");
   const host = slash === -1 ? "" : rest.slice(0, slash);
-  if (!host || !INNERTUBE_HOSTS.has(host)) {
+  const pathPrefixes = INNERTUBE_PATH_PREFIXES.get(host);
+  if (!host || (!INNERTUBE_HOSTS.has(host) && !pathPrefixes)) {
     sendJson(res, 403, {
       code: "INNERTUBE_PROXY_HOST_REFUSED",
       message: "That host is not relayed.",
@@ -294,6 +300,13 @@ async function handleInnertube(
 
   const method = (req.method ?? "GET").toUpperCase();
   const path = `/${rest.slice(slash + 1)}${url.search}`;
+  if (pathPrefixes && !pathPrefixes.some((prefix) => path.startsWith(prefix))) {
+    sendJson(res, 403, {
+      code: "INNERTUBE_PROXY_PATH_REFUSED",
+      message: "That path is not relayed.",
+    });
+    return true;
+  }
   const bodyless = method === "GET" || method === "HEAD";
   const body = bodyless ? Buffer.alloc(0) : await readRequestBody(req);
 

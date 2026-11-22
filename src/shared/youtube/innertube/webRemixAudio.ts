@@ -1,5 +1,6 @@
 import { Innertube, Platform } from "youtubei.js/web";
 import { getClientVisitorData } from "../session/visitorSession";
+import { innertubeFetch, registeredPoTokenMinter } from "./webBridges";
 import { InnertubeError } from "./innertubeClient";
 import {
   selectBestAudioFormat,
@@ -35,7 +36,9 @@ async function createSession(visitorData: string): Promise<WebRemixSession> {
     user_agent: navigator.userAgent,
     generate_session_locally: true,
     retrieve_player: true,
-    fetch: (input, init) => fetch(input, init),
+    // the session fetches the player script and the player endpoint itself, and
+    // a browser can only reach either through the site's own relay
+    fetch: innertubeFetch,
   });
   return { visitorData, innertube };
 }
@@ -72,9 +75,10 @@ async function mintContentPoToken(videoId: string): Promise<string> {
     typeof window === "undefined"
       ? undefined
       : window.linerElectron?.mintPoToken;
-  if (!mint)
-    throw new InnertubeError("PO tokens need a newer Liner app version.", 501);
-  return mint(videoId);
+  if (mint) return mint(videoId);
+  const browserMinter = registeredPoTokenMinter();
+  if (browserMinter) return browserMinter(videoId);
+  throw new InnertubeError("PO tokens need a newer Liner app version.", 501);
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
