@@ -74,11 +74,30 @@ function transcodingRank(transcoding: SoundCloudTranscoding): number {
   return 4;
 }
 
+/**
+ * A format that can be fetched and decoded without a DRM licence.
+ *
+ * Monetized tracks expose `cbc-encrypted-hls` / `ctr-encrypted-hls` (FairPlay,
+ * Widevine) and an `abr_sq` master playlist. Their segments download fine but
+ * are encrypted samples, so handing one to `<audio>` is silence at best. Search
+ * hits are filtered with this too, so a DRM-only upload is never offered as a
+ * candidate in the first place.
+ */
+export function isClearStreamFormat(
+  protocol: string,
+  mimeType: string,
+  snipped: boolean,
+): boolean {
+  if (snipped) return false;
+  if (protocol === "progressive") return true;
+  return protocol === "hls" && !mimeType.includes("mpegurl");
+}
+
 function isClearTranscoding(transcoding: SoundCloudTranscoding): boolean {
-  if (transcoding.snipped) return false;
-  if (transcoding.protocol === "progressive") return true;
-  return (
-    transcoding.protocol === "hls" && !transcoding.mimeType.includes("mpegurl")
+  return isClearStreamFormat(
+    transcoding.protocol,
+    transcoding.mimeType,
+    transcoding.snipped,
   );
 }
 

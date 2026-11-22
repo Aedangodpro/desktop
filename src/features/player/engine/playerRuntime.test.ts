@@ -216,6 +216,44 @@ describe("PlayerRuntime audio caching", () => {
     expect(usePlayerStore.getState().status).toBe("playing");
   });
 
+  it("starts an attached stream without waiting for canplay", async () => {
+    mocks.resolvePlaybackStream.mockResolvedValue(urlStream);
+    const playSpy = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue();
+    const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
+      .audio;
+    // jsdom never fires canplay: the old load path sat out its full three
+    // second deadline here before even calling play()
+    Object.defineProperty(audio, "readyState", { value: 0, configurable: true });
+    const selected: Track = { ...track, id: "no-canplay", title: "No canplay" };
+
+    const started = Date.now();
+    await playerRuntime!.loadAndPlay(selected);
+
+    expect(playSpy).toHaveBeenCalledTimes(1);
+    expect(usePlayerStore.getState().status).toBe("playing");
+    expect(Date.now() - started).toBeLessThan(2000);
+    Reflect.deleteProperty(audio, "readyState");
+  });
+
+  it("reloads once when the element rejects the resolved source instead of failing the track", async () => {
+    mocks.resolvePlaybackStream.mockResolvedValue(urlStream);
+    const playSpy = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockRejectedValueOnce(new DOMException("bad source", "NotSupportedError"))
+      .mockResolvedValue();
+    const selected: Track = { ...track, id: "bad-source", title: "Bad source" };
+
+    await playerRuntime!.loadAndPlay(selected);
+
+    await vi.waitFor(() =>
+      expect(mocks.resolvePlaybackStream).toHaveBeenCalledTimes(2),
+    );
+    expect(playSpy).toHaveBeenCalledTimes(2);
+    expect(usePlayerStore.getState().status).toBe("playing");
+  });
+
   it("only the last track starts when tracks are switched rapidly", async () => {
     const gates = new Map<string, (stream: unknown) => void>();
     mocks.resolvePlaybackStream.mockImplementation(

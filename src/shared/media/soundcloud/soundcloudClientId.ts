@@ -1,5 +1,6 @@
 import { tryFetchText } from "@/shared/api/tryFetch";
-import { apiRelayUrl } from "@/web/proxyUrls";
+import { rethrowIfAborted } from "@/shared/utils/abort";
+import { fetchSoundCloud } from "./soundcloudTransport";
 
 const SOUNDCLOUD_HOME = "https://soundcloud.com";
 const SCRIPT_URL =
@@ -22,25 +23,55 @@ function scriptUrlsFromHtml(html: string): string[] {
   );
 }
 
+/** the page answers no CORS headers, so the browser build reads it via the relay */
+async function fetchHomePage(signal?: AbortSignal): Promise<string | undefined> {
+  try {
+    const response = await fetchSoundCloud(SOUNDCLOUD_HOME, {
+      headers: { accept: "text/html,application/xhtml+xml" },
+      signal,
+    });
+    return response.ok ? await response.text() : undefined;
+  } catch {
+    rethrowIfAborted(signal);
+    return undefined;
+  }
+}
+
+/**
+ * The client id lives in one of the page's asset chunks, but not a fixed one:
+ * which chunk carries it moves between deploys. Fetching the newest few in
+ * parallel turns the usual hit into one round trip, and the rest are only read
+ * when that batch misses.
+ */
+async function clientIdFromScripts(
+  urls: string[],
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  const texts = await Promise.all(
+    urls.map((url) =>
+      tryFetchText(url, { signal }).catch(() => {
+        rethrowIfAborted(signal);
+        return undefined;
+      }),
+    ),
+  );
+  for (const text of texts) {
+    const found = text?.match(CLIENT_ID_PATTERN)?.[1];
+    if (found) return found;
+  }
+  return undefined;
+}
+
 async function discoverSoundCloudClientId(
   signal?: AbortSignal,
 ): Promise<string | undefined> {
-  // the page answers no CORS headers, so the browser build reads it through
-  // the relay; the script itself is served with `*` and is fetched directly
-  const html = await tryFetchText(apiRelayUrl(SOUNDCLOUD_HOME), {
-    headers: { accept: "text/html,application/xhtml+xml" },
-    signal,
-  });
-  for (const scriptUrl of html ? scriptUrlsFromHtml(html).reverse() : []) {
-    const found = (await tryFetchText(scriptUrl, { signal }))?.match(
-      CLIENT_ID_PATTERN,
-    )?.[1];
-    if (found) {
-      cachedSoundCloudClientId = found;
-      return found;
-    }
-  }
-  return undefined;
+  const html = await fetchHomePage(signal);
+  const scripts = html ? scriptUrlsFromHtml(html).reverse() : [];
+  const found =
+    (await clientIdFromScripts(scripts.slice(0, 3), signal)) ??
+    (await clientIdFromScripts(scripts.slice(3), signal));
+  if (found) cachedSoundCloudClientId = found;
+  return found;
 }
 
 export async function getSoundCloudClientId(

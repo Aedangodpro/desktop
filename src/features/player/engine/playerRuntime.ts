@@ -25,6 +25,31 @@ import {
 // error recovery tuning (see the audio "error" handler)
 const RECOVERY_HOLD_MS = 3000;
 const WAITING_GRACE_MS = 300; // a buffering hiccup shorter than this never shows // must play this far past a recovery before it may retry again
+/** how long an attached source may take to actually start before it is dead */
+const START_TIMEOUT_MS = 15_000;
+/** metadata is all a resume needs before playing; it arrives long before canplay */
+const METADATA_TIMEOUT_MS = 1500;
+
+/**
+ * A source that never starts playing (as opposed to one that fails to resolve):
+ * `play()` stayed pending past the deadline, or the element rejected the media
+ * it was handed. Both are worth one clean reload instead of skipping the song.
+ */
+class PlaybackStartTimeout extends Error {
+  constructor() {
+    super(`Playback did not start within ${START_TIMEOUT_MS} ms`);
+    this.name = "PlaybackStartTimeout";
+  }
+}
+
+function isStartFailure(error: unknown): boolean {
+  if (error instanceof PlaybackStartTimeout) return true;
+  if (typeof DOMException === "undefined" || !(error instanceof DOMException))
+    return false;
+  return (
+    error.name === "NotSupportedError" || error.name === "NotReadableError"
+  );
+}
 
 export class PlayerRuntime {
   private audio: HTMLAudioElement;
@@ -893,25 +918,9 @@ export class PlayerRuntime {
           `audio cache hit for "${track.title}" (${Math.round(cachedAudio.byteSize / 1024)} KB)`,
         );
 
-        if (this.audio.readyState < 3) {
-          await new Promise<void>((resolve) => {
-            const timeout = setTimeout(resolve, 3000);
-            const onCanPlay = () => {
-              clearTimeout(timeout);
-              this.audio.removeEventListener("canplay", onCanPlay);
-              this.audio.removeEventListener("error", onCanPlay);
-              resolve();
-            };
-            this.audio.addEventListener("canplay", onCanPlay, { once: true });
-            this.audio.addEventListener("error", onCanPlay, { once: true });
-          });
-        }
-
         if (epoch !== this.loadEpoch || controller.signal.aborted) return;
 
-        const playPromise = this.audio.play();
-        this.activePlayPromise = playPromise;
-        await playPromise;
+        await this.startPlayback(targetPosition);
 
         const audioStartLatencyMs = Math.round(
           performance.now() - this.loadStartTime,
@@ -965,25 +974,9 @@ export class PlayerRuntime {
         `stream attached: ${streamCodec} ${streamBitrate} bps (${track.title})`,
       );
 
-      if (this.audio.readyState < 3) {
-        await new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 3000);
-          const onCanPlay = () => {
-            clearTimeout(timeout);
-            this.audio.removeEventListener("canplay", onCanPlay);
-            this.audio.removeEventListener("error", onCanPlay);
-            resolve();
-          };
-          this.audio.addEventListener("canplay", onCanPlay, { once: true });
-          this.audio.addEventListener("error", onCanPlay, { once: true });
-        });
-      }
-
       if (epoch !== this.loadEpoch || controller.signal.aborted) return;
 
-      const playPromise = this.audio.play();
-      this.activePlayPromise = playPromise;
-      await playPromise;
+      await this.startPlayback(targetPosition);
 
       const audioStartLatencyMs = Math.round(
         performance.now() - this.loadStartTime,
@@ -1019,6 +1012,25 @@ export class PlayerRuntime {
           "autoplay blocked — waiting for user gesture",
         );
         usePlayerStore.getState().setStatus("paused");
+        return;
+      }
+
+      // The stream resolved and was attached, but the element never started it.
+      // Reporting the track as unplayable here skipped songs that a fresh load
+      // (new url, no cache) plays, so try that once first.
+      if (isStartFailure(error) && this.recoveryAttempts < 1) {
+        const positionMs = Math.max(
+          usePlayerStore.getState().positionMs,
+          startPositionMs,
+        );
+        this.recoveryAttempts += 1;
+        this.recoveryHoldUntilMs = positionMs + RECOVERY_HOLD_MS;
+        log(
+          "yellow",
+          "playback",
+          `stream did not start (${String(error)}) — reloading "${track.title}" once`,
+        );
+        void this.loadAndPlay(track, positionMs, true);
         return;
       }
 
@@ -1059,6 +1071,55 @@ export class PlayerRuntime {
         this.activePlayPromise = null;
       }
     }
+  }
+
+  /**
+   * Starts the element as soon as a source is attached.
+   *
+   * This used to wait for `HAVE_FUTURE_DATA` (or three seconds) first, which put
+   * a fixed delay in front of every slow source and did not make the start any
+   * more reliable: `play()` already resolves once playback begins. What it needs
+   * is a deadline instead — a source that stalls leaves `play()` pending for
+   * good, which is the "loaded but never starts" case.
+   */
+  private async startPlayback(positionMs: number): Promise<void> {
+    // a resume must land on its position before the first samples are audible;
+    // metadata is enough for that and arrives long before the track buffers
+    if (positionMs > 0 && this.audio.readyState < 1) {
+      await this.waitForEvent("loadedmetadata", METADATA_TIMEOUT_MS);
+    }
+    const playPromise = this.audio.play();
+    this.activePlayPromise = playPromise;
+    // the deadline may win; the element's own rejection must not go unhandled
+    playPromise.catch(() => undefined);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        playPromise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new PlaybackStartTimeout()),
+            START_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private waitForEvent(type: string, timeoutMs: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        this.audio.removeEventListener(type, done);
+        this.audio.removeEventListener("error", done);
+        resolve();
+      };
+      const timer = setTimeout(done, timeoutMs);
+      this.audio.addEventListener(type, done, { once: true });
+      this.audio.addEventListener("error", done, { once: true });
+    });
   }
 
   private seekWhenReady(epoch: number, positionMs: number) {

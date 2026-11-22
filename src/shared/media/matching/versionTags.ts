@@ -16,6 +16,10 @@ export const VERSION_PATTERNS: Array<{ tag: string; regex: RegExp }> = [
   { tag: "acoustic", regex: /\b(acoustic|акустика)\b/i },
   { tag: "live", regex: /\b(live(?:\s+at[^)]+)?|лайв|концерт)\b/i },
   { tag: "cover", regex: /\b(cover|кавер)\b/i },
+  // a tribute or karaoke page re-performs the song: same title, same length,
+  // different recording
+  { tag: "tribute", regex: /\b(tribute|трибьют)\b/i },
+  { tag: "karaoke", regex: /\b(karaoke|караоке)\b/i },
   { tag: "bass_boosted", regex: /\b(bass\s*boost(?:ed)?|басс\s*буст)\b/i },
 ];
 

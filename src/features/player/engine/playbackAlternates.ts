@@ -31,6 +31,11 @@ const OTHER_RECORDING_TAGS = new Set([
   "live",
   "cover",
   "bass_boosted",
+  // an edit is a re-cut of the song: "(Igor Blaska Edit)" is not the record
+  // that plays under the same title and length
+  "edit",
+  "tribute",
+  "karaoke",
 ]);
 
 const DURATION_TOLERANCE_MS = 10_000;
@@ -44,11 +49,40 @@ export interface UploadCandidate {
   durationMs: number;
 }
 
+const YEAR_WORD = /^(?:19|20)\d{2}$/;
+/**
+ * Release noise that `cleanBaseTitle` leaves behind when it sits inside
+ * brackets ("I Want to Know What Love Is (1999 Remaster)" keeps both words).
+ * These do not identify a recording: two remasters of one song are the same
+ * song, and requiring the year is how a perfect match (same artist, same
+ * length, "(2008 Remaster)") got thrown away.
+ */
+const RELEASE_WORDS = new Set([
+  "remaster",
+  "remastered",
+  "remasterd",
+  "deluxe",
+  "anniversary",
+  "edition",
+  "version",
+  "mix",
+  "mono",
+  "stereo",
+  "hq",
+  "hd",
+]);
+
+/** the words that actually identify the song (and the artist) */
 function words(value: string): Set<string> {
   return new Set(
     cleanBaseTitle(value)
       .split(" ")
-      .filter((word) => word.length > 0),
+      .filter(
+        (word) =>
+          word.length > 0 &&
+          !YEAR_WORD.test(word) &&
+          !RELEASE_WORDS.has(word),
+      ),
   );
 }
 
@@ -63,15 +97,22 @@ function durationGap(trackMs: number, candidateMs: number): number {
     : Number.POSITIVE_INFINITY;
 }
 
+export interface RecordingMatch {
+  /** distance in ms (or the unmeasured ranking); smaller is closer */
+  rank: number;
+  /** words the upload adds to the track's own title and artist */
+  extraWords: number;
+}
+
 /**
  * How well an upload matches, or null when it is a different recording.
  * Measured lengths sort first (by distance); unmeasured ones are ranked by how
  * much noise the title carries.
  */
-export function sameRecordingRank(
+export function sameRecordingMatch(
   track: PlayableTrack,
   candidate: UploadCandidate,
-): number | null {
+): RecordingMatch | null {
   const title = track.title.trim();
   if (!title || !candidate.title.trim()) return null;
 
@@ -88,16 +129,28 @@ export function sameRecordingRank(
   if (!includesAll(candidateWords, required)) return null;
 
   const sourceTags = getVersionTags(title);
-  for (const tag of getVersionTags(candidate.title)) {
+  // the channel name carries the tag as often as the title does: an upload of
+  // "Don't Stop Believin'" by "Absolute Journey Tribute" is a re-performance
+  const candidateTags = getVersionTags(
+    [candidate.title, ...candidate.artists].join(" "),
+  );
+  for (const tag of candidateTags) {
     if (OTHER_RECORDING_TAGS.has(tag) && !sourceTags.has(tag)) return null;
   }
 
   const extraWords = candidateWords.size - required.size;
   if (!Number.isFinite(gap)) {
     if (extraWords > MAX_UNMEASURED_EXTRA_WORDS) return null;
-    return DURATION_TOLERANCE_MS + extraWords;
+    return { rank: DURATION_TOLERANCE_MS + extraWords, extraWords };
   }
-  return gap;
+  return { rank: gap, extraWords };
+}
+
+export function sameRecordingRank(
+  track: PlayableTrack,
+  candidate: UploadCandidate,
+): number | null {
+  return sameRecordingMatch(track, candidate)?.rank ?? null;
 }
 
 export function isSameRecordingUpload(

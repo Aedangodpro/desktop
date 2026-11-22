@@ -1,5 +1,10 @@
-import { searchSoundCloudTracks } from "@/shared/media/soundcloud";
-import { sameRecordingRank } from "./playbackAlternates";
+import {
+  searchSoundCloudTracks,
+  SOUNDCLOUD_DEEP_SEARCH_LIMIT,
+} from "@/shared/media/soundcloud";
+import { rethrowIfAborted } from "@/shared/utils/abort";
+import { log } from "@/shared/utils/logger";
+import { sameRecordingMatch } from "./playbackAlternates";
 import type { PlayableTrack } from "./playbackStream";
 
 /**
@@ -16,8 +21,11 @@ import type { PlayableTrack } from "./playbackStream";
  * same artist, within ten seconds of the length, and never another mix.
  */
 
-/** Two uploads are plenty: each one costs a full track download. */
-const MAX_CANDIDATES = 2;
+/**
+ * Three uploads: the closest match can be unplayable (region, policy, snip),
+ * and each extra candidate only costs a download if the ones before it failed.
+ */
+const MAX_CANDIDATES = 3;
 
 function searchQueries(track: PlayableTrack): string[] {
   const title = track.title.trim();
@@ -31,7 +39,14 @@ function searchQueries(track: PlayableTrack): string[] {
   ];
 }
 
-/** SoundCloud uploads of the same recording, closest length first. */
+/**
+ * SoundCloud uploads of the same recording, closest length first.
+ *
+ * Both queries go out together: each is one relayed request, and running them
+ * in sequence doubled the time this fallback needed to even start. Failures are
+ * logged rather than swallowed — a silent empty result here is what made a
+ * refused YouTube track look like it never tried another catalog at all.
+ */
 export async function findSoundCloudUploads(
   track: PlayableTrack,
   signal?: AbortSignal,
@@ -39,32 +54,82 @@ export async function findSoundCloudUploads(
   const queries = searchQueries(track);
   if (queries.length === 0) return [];
 
+  let lastError: unknown = null;
+  const batches = await Promise.all(
+    queries.map((query) =>
+      searchSoundCloudTracks(query, signal, SOUNDCLOUD_DEEP_SEARCH_LIMIT).catch(
+        (error) => {
+          rethrowIfAborted(signal);
+          lastError = error;
+          return [];
+        },
+      ),
+    ),
+  );
+
+  const artist = track.artists.split(",")[0]?.trim() ?? "";
   const seen = new Set<string>();
-  const found: Array<{ id: string; rank: number }> = [];
-  for (const query of queries) {
-    const hits = await searchSoundCloudTracks(query, signal).catch((error) => {
-      if (signal?.aborted) throw error;
-      return [];
-    });
+  const found: Array<{
+    id: string;
+    rank: number;
+    extraWords: number;
+    ownArtist: boolean;
+  }> = [];
+  for (const hits of batches) {
     for (const hit of hits) {
       if (seen.has(hit.track.id)) continue;
       seen.add(hit.track.id);
-      const rank = sameRecordingRank(track, {
+      const names = [
+        ...hit.track.artists.map((entry) => entry.name),
+        hit.uploader,
+      ];
+      const match = sameRecordingMatch(track, {
         title: hit.track.title,
-        artists: [
-          ...hit.track.artists.map((artist) => artist.name),
-          hit.uploader,
-        ],
+        artists: names,
         durationMs: hit.track.durationMs,
       });
-      if (rank === null) continue;
-      found.push({ id: hit.track.id, rank });
+      if (match === null) continue;
+      // the artist's own channel first: a tribute or remix page can carry the
+      // exact title and length, and playing it instead is not the same song
+      const ownArtist = names.some(
+        (name) =>
+          name.toLowerCase().replace(/[^a-z0-9]+/g, "") ===
+          artist.toLowerCase().replace(/[^a-z0-9]+/g, ""),
+      );
+      found.push({
+        id: hit.track.id,
+        rank: match.rank,
+        extraWords: match.extraWords,
+        ownArtist,
+      });
     }
-    if (found.length >= MAX_CANDIDATES) break;
+  }
+
+  if (found.length === 0) {
+    const total = batches.reduce((sum, hits) => sum + hits.length, 0);
+    if (lastError && total === 0)
+      log(
+        "yellow",
+        "playback",
+        `soundcloud search failed for "${track.title}": ${String(lastError)}`,
+      );
+    else
+      log(
+        "cyan",
+        "playback",
+        `no soundcloud upload matches "${track.title}" (${total} hits)`,
+      );
   }
 
   return found
-    .sort((left, right) => left.rank - right.rank)
+    .sort((left, right) => {
+      // the artist's own channel first, then the plainest title ("Reggae
+      // Version" and "(Igor Blaska Edit)" carry the same length), then length
+      if (left.ownArtist !== right.ownArtist) return left.ownArtist ? -1 : 1;
+      if (left.extraWords !== right.extraWords)
+        return left.extraWords - right.extraWords;
+      return left.rank - right.rank;
+    })
     .slice(0, MAX_CANDIDATES)
     .map((entry) => entry.id);
 }

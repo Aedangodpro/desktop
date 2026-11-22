@@ -29,6 +29,7 @@ vi.mock("@/shared/media/soundcloud", async (importOriginal) => {
 });
 
 import { SoundCloudUnavailableError } from "@/shared/media/soundcloud";
+import { STREAMS_REFUSED_MESSAGE } from "@/shared/youtube";
 import { resolvePlaybackStream } from "./streamResolver";
 import { clearYoutubeStandInCache } from "./youtubeStandIn";
 
@@ -214,6 +215,34 @@ describe("resolvePlaybackStream for soundcloud ids", () => {
       standIn: true,
       url: "https://cf-media.sndcdn.com/apollo.mp3",
     });
+  });
+
+  it("goes straight to soundcloud when the network refuses every youtube client", async () => {
+    mocks.resolveDirectAudioStream.mockRejectedValue(
+      new Error(`${STREAMS_REFUSED_MESSAGE} (IOS: refused).`),
+    );
+    mocks.searchSoundCloudTracks.mockResolvedValue([
+      soundCloudHit("sc:7", "Astronaut - Apollo (Radio Edit)", 186_000),
+    ]);
+    mocks.resolveSoundCloudStream.mockResolvedValue({
+      url: "https://cf-media.sndcdn.com/apollo.mp3",
+      mimeType: "audio/mpeg",
+      codec: "mp3",
+      bitrate: 160_000,
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+
+    const stream = await resolvePlaybackStream(
+      track("BKVyNI7f9zc", "Apollo (Radio Edit)", "Astronaut", 186_000),
+    );
+
+    // a network-wide refusal means another upload would be refused too, so the
+    // stand-in probes are skipped and the other catalog is used directly
+    expect(mocks.searchRaw).not.toHaveBeenCalled();
+    expect(mocks.resolveSoundCloudStream).toHaveBeenCalledWith("sc:7", {
+      signal: undefined,
+    });
+    expect(stream).toMatchObject({ source: "soundcloud", standIn: true });
   });
 
   it("reports the youtube refusal when soundcloud has no matching upload", async () => {

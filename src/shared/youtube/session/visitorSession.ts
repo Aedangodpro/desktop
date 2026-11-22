@@ -20,9 +20,12 @@ interface VisitorSession {
 let cachedSession: VisitorSession | null = null;
 let pendingFetch: Promise<string> | null = null;
 let failedAt = 0;
+let refreshedAt = 0;
 
 const FETCH_TIMEOUT_MS = 8_000;
 const FAILURE_COOLDOWN_MS = 60_000;
+/** one resolve retries several clients; they share one visitor, not six */
+const REFRESH_DEBOUNCE_MS = 30_000;
 
 const SESSION_TTL_MS = 5.5 * 60 * 60 * 1000; // 5.5 hours
 
@@ -37,9 +40,19 @@ function browserUserAgent(): string {
     : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 }
 
+/**
+ * A bot check is answered by retrying the track with another client, and every
+ * retry used to drop the visitor and fetch a new one (`sw.js_data`, a relayed
+ * round trip) before its player call. A refused track therefore spent seconds
+ * of its resolve budget on visitor handshakes and filled the console with a
+ * fresh session per attempt. One refresh per resolve is what is actually
+ * wanted: the check is decided by the network, not by which visitor asks.
+ */
 export function resetClientVisitorData(): void {
+  if (Date.now() - refreshedAt < REFRESH_DEBOUNCE_MS) return;
   cachedSession = null;
   failedAt = 0;
+  refreshedAt = Date.now();
 }
 
 async function fetchFromSwData(): Promise<string> {

@@ -56,6 +56,22 @@ describe("isSameRecordingUpload", () => {
     ).toBe(false);
   });
 
+  it("accepts another remaster of the same recording", () => {
+    // the year and the word "remaster" are release noise, not the song
+    const foreigner: PlayableTrack = {
+      id: "J4A-_g_iSY0",
+      title: "I Want to Know What Love Is (1999 Remaster)",
+      artists: "Foreigner",
+      durationMs: 301_000,
+    };
+    expect(
+      isSameRecordingUpload(
+        foreigner,
+        upload("I Want to Know What Love Is (2008 Remaster)", ["Foreigner"], 301_000),
+      ),
+    ).toBe(true);
+  });
+
   it("accepts an untagged upload of the same recording", () => {
     expect(
       isSameRecordingUpload(

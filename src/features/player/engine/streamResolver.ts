@@ -169,14 +169,12 @@ async function findPlaybackReplacements(
  * way YouTube does. Used when YouTube refuses the track and its re-uploads, so
  * a flagged address still plays instead of skipping.
  */
-async function resolveSoundCloudUpload(
+async function playSoundCloudUploads(
   track: PlayableTrack,
+  uploads: readonly string[],
   signal?: AbortSignal,
 ): Promise<PlaybackStream | null> {
-  const uploads = await findSoundCloudUploads(track, signal).catch((error) => {
-    if (isAbortError(error, signal)) throw error;
-    return [];
-  });
+  let lastError: unknown = null;
   for (const upload of uploads) {
     try {
       const stream = fromSoundCloudStream(
@@ -191,8 +189,17 @@ async function resolveSoundCloudUpload(
       return stream;
     } catch (error) {
       if (isAbortError(error, signal)) throw error;
+      lastError = error;
     }
   }
+  // a match that will not open is different from no match at all, and the
+  // difference is invisible without this line
+  if (uploads.length > 0)
+    log(
+      "yellow",
+      "playback",
+      `soundcloud upload for "${track.title}" did not play: ${String(lastError)}`,
+    );
   return null;
 }
 
@@ -218,6 +225,12 @@ async function resolveYoutubeVideoWithStandIn(
     const everyClientRefused =
       error instanceof Error &&
       error.message.startsWith(STREAMS_REFUSED_MESSAGE);
+    // The other catalog is searched now rather than after the YouTube probes:
+    // it is one relayed request that runs next to them, and when this network
+    // is refused it is the only source that can answer at all.
+    const soundCloudSearch = findSoundCloudUploads(track, signal).catch(
+      () => [] as string[],
+    );
     if (!everyClientRefused) {
       const replacements = await findPlaybackReplacements(
         track,
@@ -244,7 +257,11 @@ async function resolveYoutubeVideoWithStandIn(
         }
       }
     }
-    const soundCloud = await resolveSoundCloudUpload(track, signal);
+    const soundCloud = await playSoundCloudUploads(
+      track,
+      await soundCloudSearch,
+      signal,
+    );
     if (soundCloud) return soundCloud;
     throw error;
   }

@@ -3,7 +3,7 @@ import {
   refreshSoundCloudClientId,
   rememberSoundCloudClientId,
 } from "./soundcloudClientId";
-import { apiRelayUrl } from "@/web/proxyUrls";
+import { fetchSoundCloud } from "./soundcloudTransport";
 
 export const SOUNDCLOUD_API = "https://api-v2.soundcloud.com";
 
@@ -34,17 +34,18 @@ export async function fetchSoundCloudApi(
 ): Promise<Response> {
   const { signal } = options;
   let clientId = await getSoundCloudClientId(undefined, signal);
-  // the API sends no CORS headers, so in a browser it is read through the
-  // site's own relay (a no-op on the desktop, where Electron adds them)
-  let response = await fetch(apiRelayUrl(buildUrl(pathOrUrl, params, clientId)), {
-    signal,
-  });
+  // the API sends no CORS headers, so a browser reads it through this app's
+  // relay (a no-op on the desktop, where Electron adds them)
+  let response = await fetchSoundCloud(
+    buildUrl(pathOrUrl, params, clientId),
+    { signal },
+  );
   if (isClientIdRejection(response.status)) {
     const refreshed = await refreshSoundCloudClientId(clientId, signal);
     if (refreshed) {
       clientId = refreshed;
-      response = await fetch(
-        apiRelayUrl(buildUrl(pathOrUrl, params, clientId)),
+      response = await fetchSoundCloud(
+        buildUrl(pathOrUrl, params, clientId),
         { signal },
       );
     }

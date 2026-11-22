@@ -91,14 +91,37 @@ refuses individual videos, not songs, and a re-upload is often accepted while
 the original is not. When the address itself is refused for every video, the
 player asks a second catalog instead: `soundcloudFallback.ts` searches
 SoundCloud for the same recording (same song words, the artist and a length
-within ten seconds, never another mix) and plays the closest upload, so a
-flagged network still plays the track rather than skipping it. SoundCloud's API
-sends no CORS headers, so `/__yt` forwards `api-v2.soundcloud.com` and the page
-its client id is scraped from; its HLS media answers
-`access-control-allow-origin: *` and streams straight to the page. Only when
+within ten seconds, never another mix, edit, tribute or karaoke) and plays the
+closest upload, so a flagged network still plays the track rather than skipping
+it. The search runs next to the re-upload probes instead of after them, and it
+asks for fifty hits: the playable upload is rarely the first one.
+
+SoundCloud's API sends no CORS headers, so `/__yt` forwards
+`api-v2.soundcloud.com` and the page its client id is scraped from. A worker
+deployed before that allowlist refuses the route; `soundcloudTransport.ts` then
+switches to `/__media`, which every playable deployment already pipes any
+host on the desktop CORS allowlist. SoundCloud's HLS media answers
+`access-control-allow-origin: *` and streams straight to the page. Monetized
+tracks only expose DRM (FairPlay/Widevine) transcodings, so search hits without
+one clear stream are dropped before they can become a candidate. Only when
 every catalog is out of options does the track become a normal "track
 unavailable" error and the queue skips. The YouTube sign-in prompt is
 desktop-only, where the TV device flow can actually finish; a tab cannot.
+
+### Starting a track
+
+A resolved stream is attached and played immediately: the element used to be
+waited on for `HAVE_FUTURE_DATA` (three seconds at worst) before `play()` was
+even called, which is a fixed delay in front of every slow source and does not
+make the start any more reliable. `play()` already resolves when playback
+begins. What it needs is a deadline — a stalled source leaves the promise
+pending forever (`START_TIMEOUT_MS`) — and one clean reload when the element
+rejects or never starts the source, instead of reporting the song as
+unplayable and skipping it.
+
+A refused player call also used to rotate `visitorData` for every client the
+resolve retried, so one bot check cost several relayed `sw.js_data` round trips
+before the fallback could run; the refresh is now debounced to once per resolve.
 
 The relays also strip the browser's client hints (`sec-ch-ua`, `sec-fetch-*`) and
 run `x-liner-user-agent` into the real `user-agent`, the way the desktop main

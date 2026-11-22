@@ -24,6 +24,7 @@ export {
 export { soundcloudCatalog } from "./soundcloudCatalog";
 export {
   searchSoundCloudTracks,
+  SOUNDCLOUD_DEEP_SEARCH_LIMIT,
   type SoundCloudSearchHit,
   type SoundCloudSearchTrack,
 } from "./soundcloudSearch";
