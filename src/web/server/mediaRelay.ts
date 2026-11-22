@@ -1,7 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { needsOpenCors } from "../../../electron/cors";
-import { INNERTUBE_PROXY_PREFIX, MEDIA_PROXY_PREFIX } from "../proxyPaths";
+import {
+  API_RELAY_HOSTS,
+  INNERTUBE_PROXY_PREFIX,
+  MEDIA_PROXY_PREFIX,
+} from "../proxyPaths";
 
 /**
  * Same-origin relay for media and Innertube traffic in the browser build.
@@ -292,7 +296,10 @@ async function handleInnertube(
   const slash = rest.indexOf("/");
   const host = slash === -1 ? "" : rest.slice(0, slash);
   const pathPrefixes = INNERTUBE_PATH_PREFIXES.get(host);
-  if (!host || (!INNERTUBE_HOSTS.has(host) && !pathPrefixes)) {
+  // SoundCloud's API sends no CORS headers either, and it is read through the
+  // same byte pipe (any path: its calls are all GETs under the host root).
+  const apiHost = API_RELAY_HOSTS.has(host);
+  if (!host || (!INNERTUBE_HOSTS.has(host) && !apiHost && !pathPrefixes)) {
     sendJson(res, 403, {
       code: "INNERTUBE_PROXY_HOST_REFUSED",
       message: "That host is not relayed.",

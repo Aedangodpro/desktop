@@ -347,4 +347,33 @@ describe("media relay", () => {
     expect(response.status()).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("relays the SoundCloud API, which sends no CORS headers", async () => {
+    fetchMock.mockResolvedValue(
+      new Response('{"collection":[]}', {
+        status: 200,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      }),
+    );
+    const handle = createMediaRelay();
+    const response = mockResponse();
+
+    await handle(
+      mockRequest(
+        "/__yt/api-v2.soundcloud.com/search/tracks?q=apollo&limit=20&client_id=abc",
+      ),
+      response.res,
+    );
+    await response.finished;
+
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "https://api-v2.soundcloud.com/search/tracks?q=apollo&limit=20&client_id=abc",
+    );
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toBe(
+      "application/json; charset=utf-8",
+    );
+    expect(response.headers()["access-control-allow-origin"]).toBe("*");
+    expect(response.body()).toBe('{"collection":[]}');
+  });
 });

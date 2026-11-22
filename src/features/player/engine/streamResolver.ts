@@ -34,6 +34,7 @@ import {
 } from "./playbackStream";
 import { findYoutubeStandIn } from "./youtubeStandIn";
 import { findAlternateUploads } from "./playbackAlternates";
+import { findSoundCloudUploads } from "./soundcloudFallback";
 import { findExactSongVersion } from "./exactSongVersion";
 import { appAllowsAccountPlayback } from "./accountPlayback";
 import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
@@ -164,6 +165,38 @@ async function findPlaybackReplacements(
 }
 
 /**
+ * The same recording on SoundCloud, which does not bot-check the network the
+ * way YouTube does. Used when YouTube refuses the track and its re-uploads, so
+ * a flagged address still plays instead of skipping.
+ */
+async function resolveSoundCloudUpload(
+  track: PlayableTrack,
+  signal?: AbortSignal,
+): Promise<PlaybackStream | null> {
+  const uploads = await findSoundCloudUploads(track, signal).catch((error) => {
+    if (isAbortError(error, signal)) throw error;
+    return [];
+  });
+  for (const upload of uploads) {
+    try {
+      const stream = fromSoundCloudStream(
+        await resolveSoundCloudStream(upload, { signal }),
+      );
+      stream.standIn = true;
+      log(
+        "cyan",
+        "playback",
+        `youtube refused "${track.title}", playing the soundcloud upload ${upload}`,
+      );
+      return stream;
+    } catch (error) {
+      if (isAbortError(error, signal)) throw error;
+    }
+  }
+  return null;
+}
+
+/**
  * YouTube bot-checks individual uploads (Topic-channel audio especially) even
  * when the rest of the catalog plays. Another upload of the same recording is
  * usually accepted, so a refused video is retried as a stand-in before the
@@ -179,37 +212,40 @@ async function resolveYoutubeVideoWithStandIn(
     return await resolveYoutubeAudio(videoId, progressive, signal);
   } catch (error) {
     if (isAbortError(error, signal)) throw error;
-    // Every profile's stream was refused, so this network is blocked and a
-    // different video would be refused too.
-    if (
+    // Every profile's stream was refused, so this network is blocked for
+    // YouTube and a different video would be refused too: only another catalog
+    // can play the track.
+    const everyClientRefused =
       error instanceof Error &&
-      error.message.startsWith(STREAMS_REFUSED_MESSAGE)
-    )
-      throw error;
-    const replacements = await findPlaybackReplacements(
-      track,
-      videoId,
-      signal,
-    );
-    for (const replacement of replacements) {
-      log(
-        "yellow",
-        "playback",
-        `youtube refused ${videoId}, trying the stand-in ${replacement} for "${track.title}"`,
+      error.message.startsWith(STREAMS_REFUSED_MESSAGE);
+    if (!everyClientRefused) {
+      const replacements = await findPlaybackReplacements(
+        track,
+        videoId,
+        signal,
       );
-      try {
-        const stream = await resolveYoutubeAudio(
-          replacement,
-          progressive,
-          signal,
-          REPLACEMENT_PROFILES,
+      for (const replacement of replacements) {
+        log(
+          "yellow",
+          "playback",
+          `youtube refused ${videoId}, trying the stand-in ${replacement} for "${track.title}"`,
         );
-        stream.standIn = true;
-        return stream;
-      } catch (replacementError) {
-        if (isAbortError(replacementError, signal)) throw replacementError;
+        try {
+          const stream = await resolveYoutubeAudio(
+            replacement,
+            progressive,
+            signal,
+            REPLACEMENT_PROFILES,
+          );
+          stream.standIn = true;
+          return stream;
+        } catch (replacementError) {
+          if (isAbortError(replacementError, signal)) throw replacementError;
+        }
       }
     }
+    const soundCloud = await resolveSoundCloudUpload(track, signal);
+    if (soundCloud) return soundCloud;
     throw error;
   }
 }

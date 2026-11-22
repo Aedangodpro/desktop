@@ -88,9 +88,17 @@ falls back to `/youtubei/v1/visitor_id` when that document omits it.
 A bot check that still reaches the player is retried as another upload of the
 same recording (`src/features/player/engine/playbackAlternates.ts`): YouTube
 refuses individual videos, not songs, and a re-upload is often accepted while
-the original is not. Only when every upload is refused does the track become a
-normal "track unavailable" error and the queue skips. The YouTube sign-in prompt
-is desktop-only, where the TV device flow can actually finish; a tab cannot.
+the original is not. When the address itself is refused for every video, the
+player asks a second catalog instead: `soundcloudFallback.ts` searches
+SoundCloud for the same recording (same song words, the artist and a length
+within ten seconds, never another mix) and plays the closest upload, so a
+flagged network still plays the track rather than skipping it. SoundCloud's API
+sends no CORS headers, so `/__yt` forwards `api-v2.soundcloud.com` and the page
+its client id is scraped from; its HLS media answers
+`access-control-allow-origin: *` and streams straight to the page. Only when
+every catalog is out of options does the track become a normal "track
+unavailable" error and the queue skips. The YouTube sign-in prompt is
+desktop-only, where the TV device flow can actually finish; a tab cannot.
 
 The relays also strip the browser's client hints (`sec-ch-ua`, `sec-fetch-*`) and
 run `x-liner-user-agent` into the real `user-agent`, the way the desktop main

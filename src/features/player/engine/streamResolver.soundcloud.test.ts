@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   resolveDirectAudioStream: vi.fn(),
   searchRaw: vi.fn(),
   resolveSoundCloudStream: vi.fn(),
+  searchSoundCloudTracks: vi.fn(),
 }));
 
 vi.mock("@/shared/youtube", async (importOriginal) => {
@@ -20,7 +21,11 @@ vi.mock("@/shared/youtube", async (importOriginal) => {
 vi.mock("@/shared/media/soundcloud", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/shared/media/soundcloud")>();
-  return { ...actual, resolveSoundCloudStream: mocks.resolveSoundCloudStream };
+  return {
+    ...actual,
+    resolveSoundCloudStream: mocks.resolveSoundCloudStream,
+    searchSoundCloudTracks: mocks.searchSoundCloudTracks,
+  };
 });
 
 import { SoundCloudUnavailableError } from "@/shared/media/soundcloud";
@@ -60,11 +65,31 @@ function searchTrack(
   };
 }
 
+function soundCloudHit(
+  id: string,
+  title: string,
+  durationMs: number,
+  artist = "Astronaut",
+) {
+  return {
+    track: {
+      type: "track" as const,
+      id,
+      title,
+      artists: artist ? [{ id: "sc_user_1", name: artist }] : [],
+      durationMs,
+    },
+    uploader: artist || "Some Channel",
+    plays: 0,
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   mocks.resolveDirectAudioStream.mockReset();
   mocks.searchRaw.mockReset();
   mocks.resolveSoundCloudStream.mockReset();
+  mocks.searchSoundCloudTracks.mockReset();
   clearYoutubeStandInCache();
 });
 
@@ -156,6 +181,57 @@ describe("resolvePlaybackStream for soundcloud ids", () => {
     await expect(resolvePlaybackStream(track("sc:10"))).rejects.toThrow(
       "not_found",
     );
+  });
+
+  it("plays the same recording from soundcloud when youtube refuses the track", async () => {
+    mocks.resolveDirectAudioStream.mockRejectedValue(
+      new Error("This track cannot be played in this browser right now."),
+    );
+    mocks.searchRaw.mockResolvedValue([]);
+    mocks.searchSoundCloudTracks.mockResolvedValue([
+      soundCloudHit("sc:102180160", "Astronaut - Apollo (Electro Mix)", 262_000),
+      soundCloudHit("sc:102180256", "Astronaut - Apollo (Radio Edit)", 186_000),
+    ]);
+    mocks.resolveSoundCloudStream.mockResolvedValue({
+      url: "https://cf-media.sndcdn.com/apollo.mp3",
+      mimeType: "audio/mpeg",
+      codec: "mp3",
+      bitrate: 160_000,
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+
+    const stream = await resolvePlaybackStream(
+      track("BKVyNI7f9zc", "Apollo (Radio Edit)", "Astronaut", 186_000),
+    );
+
+    // the electro mix is 76s longer, so only the radio edit is a candidate
+    expect(mocks.resolveSoundCloudStream).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveSoundCloudStream).toHaveBeenCalledWith("sc:102180256", {
+      signal: undefined,
+    });
+    expect(stream).toMatchObject({
+      source: "soundcloud",
+      standIn: true,
+      url: "https://cf-media.sndcdn.com/apollo.mp3",
+    });
+  });
+
+  it("reports the youtube refusal when soundcloud has no matching upload", async () => {
+    const refusal = new Error(
+      "This track cannot be played in this browser right now.",
+    );
+    mocks.resolveDirectAudioStream.mockRejectedValue(refusal);
+    mocks.searchRaw.mockResolvedValue([]);
+    mocks.searchSoundCloudTracks.mockResolvedValue([
+      soundCloudHit("sc:1", "Someone Else - Apollo (Radio Edit)", 186_000, ""),
+    ]);
+
+    await expect(
+      resolvePlaybackStream(
+        track("BKVyNI7f9zc", "Apollo (Radio Edit)", "Astronaut", 186_000),
+      ),
+    ).rejects.toThrow(refusal.message);
+    expect(mocks.resolveSoundCloudStream).not.toHaveBeenCalled();
   });
 
   it("does not fall back when the request was aborted", async () => {

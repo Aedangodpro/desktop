@@ -98,6 +98,15 @@ async function run() {
   });
   assert.ok(yt.status < 500, `innertube relay returned ${yt.status}`);
   console.log(`innertube relay answered: ${yt.status}`);
+
+  // The playback fallback reads SoundCloud's API through the same relay, since
+  // that API sends a browser no CORS headers at all.
+  const soundcloud = await fetch(`${BASE}/__yt/soundcloud.com/`, {
+    headers: { accept: "text/html" },
+  });
+  assert.ok(soundcloud.status < 500, `soundcloud relay returned ${soundcloud.status}`);
+  assert.match(await soundcloud.text(), /a-v2\.sndcdn\.com\/assets\//);
+  console.log(`soundcloud relay answered: ${soundcloud.status}`);
 }
 
 run()

@@ -1,4 +1,5 @@
 import { tryFetchText } from "@/shared/api/tryFetch";
+import { apiRelayUrl } from "@/web/proxyUrls";
 
 const SOUNDCLOUD_HOME = "https://soundcloud.com";
 const SCRIPT_URL =
@@ -24,7 +25,9 @@ function scriptUrlsFromHtml(html: string): string[] {
 async function discoverSoundCloudClientId(
   signal?: AbortSignal,
 ): Promise<string | undefined> {
-  const html = await tryFetchText(SOUNDCLOUD_HOME, {
+  // the page answers no CORS headers, so the browser build reads it through
+  // the relay; the script itself is served with `*` and is fetched directly
+  const html = await tryFetchText(apiRelayUrl(SOUNDCLOUD_HOME), {
     headers: { accept: "text/html,application/xhtml+xml" },
     signal,
   });

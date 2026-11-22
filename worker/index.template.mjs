@@ -120,6 +120,14 @@ const INNERTUBE_PATH_PREFIXES = new Map([
   ["www.google.com", ["/js/bg/", "/js/th/"]],
 ]);
 
+/**
+ * Hosts with no CORS of their own that the same byte pipe forwards on any
+ * path: SoundCloud's API (track, search, transcoding) and its client-id page.
+ * Its HLS media sends `access-control-allow-origin: *`, so audio skips the
+ * relay and streams straight to the page.
+ */
+const API_RELAY_HOSTS = new Set(["api-v2.soundcloud.com", "soundcloud.com"]);
+
 const OPEN_CORS_DOMAINS = [
   "tryliner.fun",
   "youtube.com",
@@ -454,7 +462,8 @@ async function handleInnertube(request, url) {
   const slash = rest.indexOf("/");
   const host = slash === -1 ? "" : rest.slice(0, slash);
   const pathPrefixes = INNERTUBE_PATH_PREFIXES.get(host);
-  if (!host || (!INNERTUBE_HOSTS.has(host) && !pathPrefixes)) {
+  const apiHost = API_RELAY_HOSTS.has(host);
+  if (!host || (!INNERTUBE_HOSTS.has(host) && !apiHost && !pathPrefixes)) {
     return json(403, {
       code: "INNERTUBE_PROXY_HOST_REFUSED",
       message: "That host is not relayed.",
