@@ -85,9 +85,12 @@ keeps those calls out of YouTube's "confirm you're not a bot" check:
 `src/shared/youtube/session/visitorSession.ts` reads it from `sw.js_data` and
 falls back to `/youtubei/v1/visitor_id` when that document omits it.
 
-A bot check that still reaches the player becomes a normal "track unavailable"
-error and the queue skips. The YouTube sign-in prompt is desktop-only, where the
-TV device flow can actually finish; a tab cannot.
+A bot check that still reaches the player is retried as another upload of the
+same recording (`src/features/player/engine/playbackAlternates.ts`): YouTube
+refuses individual videos, not songs, and a re-upload is often accepted while
+the original is not. Only when every upload is refused does the track become a
+normal "track unavailable" error and the queue skips. The YouTube sign-in prompt
+is desktop-only, where the TV device flow can actually finish; a tab cannot.
 
 ### Deploying
 

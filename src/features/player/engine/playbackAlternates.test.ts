@@ -64,4 +64,22 @@ describe("isSameRecordingUpload", () => {
       ),
     ).toBe(true);
   });
+
+  it("accepts a re-upload that search results leave unmeasured", () => {
+    expect(
+      isSameRecordingUpload(
+        apollo,
+        upload("Astronaut - Apollo (Radio Edit)", ["Vylen"], 0),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects an unmeasured video that only shares the song name", () => {
+    expect(
+      isSameRecordingUpload(
+        apollo,
+        upload("THE ASTRONAUT (APOLLO 13)", ["GTL Music Promotions"], 0),
+      ),
+    ).toBe(false);
+  });
 });

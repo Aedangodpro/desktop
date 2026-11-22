@@ -35,6 +35,8 @@ const OTHER_RECORDING_TAGS = new Set([
 
 const DURATION_TOLERANCE_MS = 10_000;
 const MAX_CANDIDATES = 3;
+/** Without a length, only titles this close to the track are trusted. */
+const MAX_UNMEASURED_EXTRA_WORDS = 1;
 
 export interface UploadCandidate {
   title: string;
@@ -61,32 +63,48 @@ function durationGap(trackMs: number, candidateMs: number): number {
     : Number.POSITIVE_INFINITY;
 }
 
-export function isSameRecordingUpload(
+/**
+ * How well an upload matches, or null when it is a different recording.
+ * Measured lengths sort first (by distance); unmeasured ones are ranked by how
+ * much noise the title carries.
+ */
+export function sameRecordingRank(
   track: PlayableTrack,
   candidate: UploadCandidate,
-): boolean {
+): number | null {
   const title = track.title.trim();
-  if (!title || !candidate.title.trim()) return false;
+  if (!title || !candidate.title.trim()) return null;
 
   const gap = durationGap(track.durationMs, candidate.durationMs);
-  if (gap > DURATION_TOLERANCE_MS) return false;
-
-  const candidateWords = words(
-    [candidate.title, ...candidate.artists].join(" "),
-  );
-  if (!includesAll(candidateWords, words(title))) return false;
+  if (Number.isFinite(gap) && gap > DURATION_TOLERANCE_MS) return null;
 
   // The artist usually lives in the title ("Artist - Song"), so searching the
   // combined words keeps re-uploads from unrelated channels.
   const primaryArtist = track.artists.split(",")[0]?.trim() ?? "";
-  if (primaryArtist && !includesAll(candidateWords, words(primaryArtist)))
-    return false;
+  const required = words(primaryArtist ? `${title} ${primaryArtist}` : title);
+  const candidateWords = words(
+    [candidate.title, ...candidate.artists].join(" "),
+  );
+  if (!includesAll(candidateWords, required)) return null;
 
   const sourceTags = getVersionTags(title);
   for (const tag of getVersionTags(candidate.title)) {
-    if (OTHER_RECORDING_TAGS.has(tag) && !sourceTags.has(tag)) return false;
+    if (OTHER_RECORDING_TAGS.has(tag) && !sourceTags.has(tag)) return null;
   }
-  return true;
+
+  const extraWords = candidateWords.size - required.size;
+  if (!Number.isFinite(gap)) {
+    if (extraWords > MAX_UNMEASURED_EXTRA_WORDS) return null;
+    return DURATION_TOLERANCE_MS + extraWords;
+  }
+  return gap;
+}
+
+export function isSameRecordingUpload(
+  track: PlayableTrack,
+  candidate: UploadCandidate,
+): boolean {
+  return sameRecordingRank(track, candidate) !== null;
 }
 
 /**
@@ -127,8 +145,9 @@ export async function findAlternateUploads(
         artists: result.artists.map((entry) => entry.name),
         durationMs: result.durationMs,
       };
-      if (!isSameRecordingUpload(track, candidate)) continue;
-      found.push({ id, gap: durationGap(track.durationMs, result.durationMs) });
+      const rank = sameRecordingRank(track, candidate);
+      if (rank === null) continue;
+      found.push({ id, gap: rank });
     }
     if (found.length >= MAX_CANDIDATES) break;
   }
