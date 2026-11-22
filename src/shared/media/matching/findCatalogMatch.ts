@@ -26,9 +26,12 @@ function toTrack(item: Extract<SearchResult, { type: "track" }>): Track {
   return track;
 }
 
-function extractTracks(results: SearchResult[]): Track[] {
+function extractTracks(
+  results: SearchResult[],
+  exclude: ReadonlySet<string> | undefined,
+): Track[] {
   return results.flatMap((item) =>
-    item.type === "track" ? [toTrack(item)] : [],
+    item.type === "track" && !exclude?.has(item.id) ? [toTrack(item)] : [],
   );
 }
 
@@ -46,15 +49,25 @@ function mergeCandidates(left: Track[], right: Track[]): Track[] {
   ];
 }
 
+export interface FindCatalogMatchOptions {
+  /** ids that must never be proposed, such as the video that just refused to play */
+  excludeIds?: readonly string[];
+}
+
 export async function findCatalogMatch(
   source: ImportedTrack,
   signal?: AbortSignal,
+  options: FindCatalogMatchOptions = {},
 ): Promise<TrackMatchOutcome> {
+  const exclude = options.excludeIds?.length
+    ? new Set(options.excludeIds)
+    : undefined;
   let searchFailed = false;
   const search = async (query: string, filter: SearchFilter) => {
     try {
       return extractTracks(
         await searchRaw(query, filter === "all" ? undefined : filter, signal),
+        exclude,
       );
     } catch (error) {
       if (signal?.aborted) throw error;

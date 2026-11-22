@@ -82,6 +82,7 @@ describe("resolvePlaybackStream for youtube ids", () => {
   });
 
   it("surfaces the innertube error when youtube cannot play the track", async () => {
+    mocks.searchRaw.mockResolvedValue([]);
     mocks.resolveDirectAudioStream.mockRejectedValue(
       new Error("LOGIN_REQUIRED"),
     );
@@ -89,6 +90,53 @@ describe("resolvePlaybackStream for youtube ids", () => {
     await expect(resolvePlaybackStream(track("dQw4w9WgXcQ"))).rejects.toThrow(
       "LOGIN_REQUIRED",
     );
+  });
+
+  it("plays another upload when youtube bot-checks the song video", async () => {
+    mocks.searchRaw.mockResolvedValue([
+      searchTrack("4NRXx6U8ABQ", "Blinding Lights", "The Weeknd", 200_000),
+    ]);
+    mocks.resolveDirectAudioStream
+      .mockRejectedValueOnce(
+        new Error("This track cannot be played in this browser right now."),
+      )
+      .mockResolvedValueOnce(directStream);
+
+    const stream = await resolvePlaybackStream(track("dQw4w9WgXcQ"));
+
+    expect(mocks.resolveDirectAudioStream).toHaveBeenNthCalledWith(
+      2,
+      "4NRXx6U8ABQ",
+      { signal: undefined },
+    );
+    expect(stream).toMatchObject({ url: directStream.url, standIn: true });
+  });
+
+  it("keeps the original failure when the stand-in is refused too", async () => {
+    mocks.searchRaw.mockResolvedValue([
+      searchTrack("4NRXx6U8ABQ", "Blinding Lights", "The Weeknd", 200_000),
+    ]);
+    mocks.resolveDirectAudioStream.mockRejectedValue(
+      new Error("This track cannot be played in this browser right now."),
+    );
+
+    await expect(resolvePlaybackStream(track("dQw4w9WgXcQ"))).rejects.toThrow(
+      "This track cannot be played in this browser right now.",
+    );
+  });
+
+  it("never retries the refused video as its own stand-in", async () => {
+    mocks.searchRaw.mockResolvedValue([
+      searchTrack("dQw4w9WgXcQ", "Blinding Lights", "The Weeknd", 200_000),
+    ]);
+    mocks.resolveDirectAudioStream.mockRejectedValue(
+      new Error("This track cannot be played in this browser right now."),
+    );
+
+    await expect(resolvePlaybackStream(track("dQw4w9WgXcQ"))).rejects.toThrow(
+      "This track cannot be played in this browser right now.",
+    );
+    expect(mocks.resolveDirectAudioStream).toHaveBeenCalledTimes(1);
   });
 });
 

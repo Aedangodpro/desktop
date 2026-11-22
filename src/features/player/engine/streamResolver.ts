@@ -4,6 +4,7 @@ import {
   resolveDirectAudioStream,
   openTvAudioStream,
   resolveTvAudioStream,
+  STREAMS_REFUSED_MESSAGE,
   toVideoId,
 } from "@/shared/youtube";
 import {
@@ -124,6 +125,53 @@ async function resolveSoundCloud(
   }
 }
 
+/**
+ * YouTube bot-checks individual uploads (Topic-channel audio especially) even
+ * when the rest of the catalog plays. Another upload of the same recording is
+ * usually accepted, so a refused video is retried as a stand-in before the
+ * track is reported unavailable.
+ */
+async function resolveYoutubeVideoWithStandIn(
+  track: PlayableTrack,
+  videoId: string,
+  progressive: boolean,
+  signal?: AbortSignal,
+): Promise<PlaybackStream> {
+  try {
+    return await resolveYoutubeAudio(videoId, progressive, signal);
+  } catch (error) {
+    if (isAbortError(error, signal)) throw error;
+    // Every profile's stream was refused, so this network is blocked and a
+    // different video would be refused too.
+    if (
+      error instanceof Error &&
+      error.message.startsWith(STREAMS_REFUSED_MESSAGE)
+    )
+      throw error;
+    const standInId = await findYoutubeStandIn(track, signal, videoId).catch(
+      () => null,
+    );
+    if (!standInId || standInId === videoId) throw error;
+    log(
+      "yellow",
+      "playback",
+      `youtube refused ${videoId}, trying the stand-in ${standInId} for "${track.title}"`,
+    );
+    try {
+      const stream = await resolveYoutubeAudio(
+        standInId,
+        progressive,
+        signal,
+      );
+      stream.standIn = true;
+      return stream;
+    } catch (standInError) {
+      if (isAbortError(standInError, signal)) throw standInError;
+      throw error;
+    }
+  }
+}
+
 async function resolveYoutubeTrack(
   track: PlayableTrack,
   rowVideoId: string,
@@ -145,7 +193,7 @@ async function resolveYoutubeTrack(
     log("cyan", "playback", `resolved liner audio (r2) for "${track.title}"`);
     return fromLinerStream(liner, track);
   }
-  return resolveYoutubeAudio(videoId, progressive, signal);
+  return resolveYoutubeVideoWithStandIn(track, videoId, progressive, signal);
 }
 
 // A browser cannot load googlevideo or presigned R2 urls directly: neither host
