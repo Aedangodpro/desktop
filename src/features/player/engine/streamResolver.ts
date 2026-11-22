@@ -31,6 +31,7 @@ import {
   type PlaybackStream,
 } from "./playbackStream";
 import { findYoutubeStandIn } from "./youtubeStandIn";
+import { findAlternateUploads } from "./playbackAlternates";
 import { findExactSongVersion } from "./exactSongVersion";
 import { appAllowsAccountPlayback } from "./accountPlayback";
 import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
@@ -125,6 +126,29 @@ async function resolveSoundCloud(
   }
 }
 
+/** Two other uploads is enough to ride out a bot check without a request storm. */
+const MAX_ALTERNATE_ATTEMPTS = 2;
+
+async function findPlaybackReplacements(
+  track: PlayableTrack,
+  refusedVideoId: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const ids: string[] = [];
+  // the catalog match is quality-vetted, so it gets the first try
+  const curated = await findYoutubeStandIn(track, signal, refusedVideoId).catch(
+    () => null,
+  );
+  if (curated && curated !== refusedVideoId) ids.push(curated);
+  const uploads = await findAlternateUploads(
+    track,
+    refusedVideoId,
+    signal,
+  ).catch(() => []);
+  for (const id of uploads) if (!ids.includes(id)) ids.push(id);
+  return ids.slice(0, MAX_ALTERNATE_ATTEMPTS);
+}
+
 /**
  * YouTube bot-checks individual uploads (Topic-channel audio especially) even
  * when the rest of the catalog plays. Another upload of the same recording is
@@ -148,27 +172,30 @@ async function resolveYoutubeVideoWithStandIn(
       error.message.startsWith(STREAMS_REFUSED_MESSAGE)
     )
       throw error;
-    const standInId = await findYoutubeStandIn(track, signal, videoId).catch(
-      () => null,
+    const replacements = await findPlaybackReplacements(
+      track,
+      videoId,
+      signal,
     );
-    if (!standInId || standInId === videoId) throw error;
-    log(
-      "yellow",
-      "playback",
-      `youtube refused ${videoId}, trying the stand-in ${standInId} for "${track.title}"`,
-    );
-    try {
-      const stream = await resolveYoutubeAudio(
-        standInId,
-        progressive,
-        signal,
+    for (const replacement of replacements) {
+      log(
+        "yellow",
+        "playback",
+        `youtube refused ${videoId}, trying the stand-in ${replacement} for "${track.title}"`,
       );
-      stream.standIn = true;
-      return stream;
-    } catch (standInError) {
-      if (isAbortError(standInError, signal)) throw standInError;
-      throw error;
+      try {
+        const stream = await resolveYoutubeAudio(
+          replacement,
+          progressive,
+          signal,
+        );
+        stream.standIn = true;
+        return stream;
+      } catch (replacementError) {
+        if (isAbortError(replacementError, signal)) throw replacementError;
+      }
     }
+    throw error;
   }
 }
 

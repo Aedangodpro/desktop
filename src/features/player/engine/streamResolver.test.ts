@@ -125,6 +125,33 @@ describe("resolvePlaybackStream for youtube ids", () => {
     );
   });
 
+  it("plays a re-upload the catalog matcher rejects", async () => {
+    mocks.searchRaw.mockResolvedValue([
+      searchTrack(
+        "bpRHSP8VKFA",
+        "Astronaut - Apollo (Radio Edit) | Vylen",
+        "Vylen",
+        186_000,
+      ),
+    ]);
+    mocks.resolveDirectAudioStream
+      .mockRejectedValueOnce(
+        new Error("This track cannot be played in this browser right now."),
+      )
+      .mockResolvedValueOnce(directStream);
+
+    const stream = await resolvePlaybackStream(
+      track("BKVyNI7f9zc", "Apollo (Radio Edit)", "Astronaut", 186_000),
+    );
+
+    expect(mocks.resolveDirectAudioStream).toHaveBeenNthCalledWith(
+      2,
+      "bpRHSP8VKFA",
+      { signal: undefined },
+    );
+    expect(stream).toMatchObject({ url: directStream.url, standIn: true });
+  });
+
   it("never retries the refused video as its own stand-in", async () => {
     mocks.searchRaw.mockResolvedValue([
       searchTrack("dQw4w9WgXcQ", "Blinding Lights", "The Weeknd", 200_000),
