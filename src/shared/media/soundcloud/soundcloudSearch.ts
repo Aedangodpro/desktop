@@ -14,6 +14,8 @@ export type SoundCloudSearchTrack = Extract<SearchResult, { type: "track" }>;
 export interface SoundCloudSearchHit {
   track: SoundCloudSearchTrack;
   uploader: string;
+  /** the account is a verified artist page, not a fan or impersonation page */
+  uploaderVerified: boolean;
   publisherArtist?: string;
   plays: number;
 }
@@ -64,6 +66,7 @@ function toSearchHit(rawTrack: unknown): SoundCloudSearchHit[] {
     {
       track: { ...track, type: "track" },
       uploader,
+      uploaderVerified: asRecord(record.user)?.verified === true,
       ...(publisherArtist ? { publisherArtist } : {}),
       plays: numberValue(record.playback_count) ?? 0,
     },

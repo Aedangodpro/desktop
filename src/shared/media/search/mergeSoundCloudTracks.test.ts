@@ -30,6 +30,7 @@ function upload(
   return {
     track: hit(id, title, uploader, durationMs),
     uploader,
+    uploaderVerified: false,
     plays: 0,
     ...extra,
   };

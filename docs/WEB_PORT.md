@@ -96,6 +96,16 @@ closest upload, so a flagged network still plays the track rather than skipping
 it. The search runs next to the re-upload probes instead of after them, and it
 asks for fifty hits: the playable upload is rarely the first one.
 
+The matcher also checks who published an upload, because a cover quotes the
+artist in its title and keeps the original length: a release the catalog credits
+to a different artist in `publisher_metadata.artist` is never played, a verified
+account that is not this artist is a cover artist's own page, a bracketed part
+the release does not have (`(Full Step Down)`, `(The Arabic Version/Rendition)`)
+is another version, and an upload nobody credits to the artist may only add one
+word to the release title. A song whose only playable SoundCloud copy is a
+re-performance now reports itself unavailable instead of playing the wrong
+recording.
+
 SoundCloud's API sends no CORS headers, so `/__yt` forwards
 `api-v2.soundcloud.com` and the page its client id is scraped from. A worker
 deployed before that allowlist refuses the route; `soundcloudTransport.ts` then

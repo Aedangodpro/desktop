@@ -50,6 +50,7 @@ describe("searchSoundCloudTracks", () => {
           artists: [{ id: "sc_user_7", name: "nuvole" }],
         }),
         uploader: "nuvole",
+        uploaderVerified: false,
         publisherArtist: "Nuvole",
         plays: 42,
       },

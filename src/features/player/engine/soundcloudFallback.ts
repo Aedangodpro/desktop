@@ -18,7 +18,10 @@ import type { PlayableTrack } from "./playbackStream";
  * so a refused track still has somewhere to play from.
  *
  * Matching is the re-upload matcher, not the import matcher: same song words,
- * same artist, within ten seconds of the length, and never another mix.
+ * same artist, within ten seconds of the length, and never another mix. Who
+ * published an upload is part of that: a cover or an "Arabic Version/Rendition"
+ * credits its performer in the catalog metadata, so it is not the artist's
+ * recording even though the title quotes the artist and the length lines up.
  */
 
 /**
@@ -67,7 +70,6 @@ export async function findSoundCloudUploads(
     ),
   );
 
-  const artist = track.artists.split(",")[0]?.trim() ?? "";
   const seen = new Set<string>();
   const found: Array<{
     id: string;
@@ -79,28 +81,22 @@ export async function findSoundCloudUploads(
     for (const hit of hits) {
       if (seen.has(hit.track.id)) continue;
       seen.add(hit.track.id);
-      const names = [
-        ...hit.track.artists.map((entry) => entry.name),
-        hit.uploader,
-      ];
       const match = sameRecordingMatch(track, {
         title: hit.track.title,
-        artists: names,
+        artists: hit.track.artists.map((entry) => entry.name),
+        // the label's own attribution, not the uploader account: anyone can
+        // name an account after an artist they are covering
+        ...(hit.publisherArtist ? { publisher: hit.publisherArtist } : {}),
+        uploader: hit.uploader,
+        uploaderVerified: hit.uploaderVerified,
         durationMs: hit.track.durationMs,
       });
       if (match === null) continue;
-      // the artist's own channel first: a tribute or remix page can carry the
-      // exact title and length, and playing it instead is not the same song
-      const ownArtist = names.some(
-        (name) =>
-          name.toLowerCase().replace(/[^a-z0-9]+/g, "") ===
-          artist.toLowerCase().replace(/[^a-z0-9]+/g, ""),
-      );
       found.push({
         id: hit.track.id,
         rank: match.rank,
         extraWords: match.extraWords,
-        ownArtist,
+        ownArtist: match.ownArtist,
       });
     }
   }

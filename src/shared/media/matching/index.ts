@@ -25,4 +25,5 @@ export {
   type RecordingProfile,
 } from "./sameRecording";
 export { getVersionTags } from "./versionTags";
+export { getPerformanceTags } from "./performanceTags";
 export { artistsMatch } from "./artists";

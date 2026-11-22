@@ -13,8 +13,9 @@ function upload(
   title: string,
   artists: string[],
   durationMs: number,
+  extra: Partial<UploadCandidate> = {},
 ): UploadCandidate {
-  return { title, artists, durationMs };
+  return { title, artists, durationMs, ...extra };
 }
 
 describe("isSameRecordingUpload", () => {
@@ -86,6 +87,141 @@ describe("isSameRecordingUpload", () => {
       isSameRecordingUpload(
         apollo,
         upload("Astronaut - Apollo (Radio Edit)", ["Vylen"], 0),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a re-performance the catalog credits to another artist", () => {
+    // the real "Loser" upload is 4:28; the 3:46 one is an oud rendition, and
+    // the catalog says so in its publisher tag
+    const loser: PlayableTrack = {
+      id: "loserVid",
+      title: "Loser",
+      artists: "Tame Impala",
+      durationMs: 224_000,
+    };
+    expect(
+      isSameRecordingUpload(
+        loser,
+        upload(
+          "Loser - Tame Impala (The Arabic Version/Rendition)",
+          ["YAD Oud"],
+          226_000,
+          { publisher: "YAD Oud", uploader: "YAD Oud" },
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      isSameRecordingUpload(
+        loser,
+        upload("Tame Impala - Loser (Live Ver.)", ["doyoon.wav"], 233_000),
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects an arrangement that keeps the length", () => {
+    const letItHappen: PlayableTrack = {
+      id: "letItHappenVid",
+      title: "Let It Happen",
+      artists: "Tame Impala",
+      durationMs: 467_000,
+    };
+    // a guitar arrangement in a dropped tuning: same words, same length, and a
+    // qualifier the release does not have
+    expect(
+      isSameRecordingUpload(
+        letItHappen,
+        upload("Tame Impala - Let It Happen (Full Step Down)", ["Pearson Buck"], 474_000),
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a bare title uploaded by an account named after the artist", () => {
+    const hello: PlayableTrack = {
+      id: "helloVid",
+      title: "Hello",
+      artists: "Adele",
+      durationMs: 296_000,
+    };
+    expect(
+      isSameRecordingUpload(
+        hello,
+        upload("Hello", ["Hello Adele"], 291_000, {
+          uploader: "Hello Adele",
+          uploaderVerified: false,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a tribute band's upload of the song", () => {
+    const bohemian: PlayableTrack = {
+      id: "bohemianVid",
+      title: "Bohemian Rhapsody",
+      artists: "Queen",
+      durationMs: 355_000,
+    };
+    expect(
+      isSameRecordingUpload(
+        bohemian,
+        upload("Bohemian Rhapsody", ["Killer Queen Band Page"], 351_000, {
+          uploader: "Killer Queen Band Page",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a verified cover artist's own upload", () => {
+    const hello: PlayableTrack = {
+      id: "helloVid",
+      title: "Hello",
+      artists: "Adele",
+      durationMs: 296_000,
+    };
+    // the title quotes the original artist and the length lines up, but the
+    // upload is Grace Davies' cover, published on her own verified page
+    expect(
+      isSameRecordingUpload(
+        hello,
+        upload("Hello - Adele", ["Grace Davies"], 301_000, {
+          uploader: "Grace Davies",
+          uploaderVerified: true,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("accepts a fan re-upload whose title names the artist", () => {
+    const bohemian: PlayableTrack = {
+      id: "bohemianVid",
+      title: "Bohemian Rhapsody",
+      artists: "Queen",
+      durationMs: 355_000,
+    };
+    expect(
+      isSameRecordingUpload(
+        bohemian,
+        upload("Queen - Bohemian Rhapsody", ["rizky.rilos"], 353_000, {
+          uploader: "rizky.rilos",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts an upload the label still credits to the artist", () => {
+    const yellow: PlayableTrack = {
+      id: "yellowVid",
+      title: "Yellow",
+      artists: "Coldplay",
+      durationMs: 267_000,
+    };
+    expect(
+      isSameRecordingUpload(
+        yellow,
+        upload("Coldplay - Yellow", ["Archelle"], 257_000, {
+          publisher: "Coldplay",
+          uploader: "Archelle",
+        }),
       ),
     ).toBe(true);
   });
