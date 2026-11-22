@@ -9,7 +9,7 @@
  * network calls go through the site's own relay.
  */
 
-import { BotGuardClient } from "bgutils-js/botguard";
+import { BotGuardClient, getChallenge } from "bgutils-js/botguard";
 import { WebPoMinter } from "bgutils-js/webpo";
 import { buildURL, GOOG_API_KEY } from "bgutils-js/utils";
 import { innertubeProxyUrl } from "@/web/proxyUrls";
@@ -56,7 +56,21 @@ function readChallenge(raw: RawChallenge | undefined): Challenge {
   };
 }
 
-async function fetchChallenge(): Promise<Challenge> {
+/**
+ * BotGuard's own challenge endpoint. Its program is the one the attribution
+ * service hands to browsers, and only that program knows how to hand out a
+ * WebPO minter (`PMD`); the Innertube `att/get` challenge does not.
+ */
+async function fetchCreateChallenge(): Promise<Challenge> {
+  const challenge = await getChallenge({
+    requestKey: REQUEST_KEY,
+    fetchFunction: (input, init) =>
+      fetch(innertubeProxyUrl(String(input)), init),
+  });
+  return readChallenge(challenge as unknown as RawChallenge);
+}
+
+async function fetchAttChallenge(): Promise<Challenge> {
   const response = await fetch(
     innertubeProxyUrl(
       "https://www.youtube.com/youtubei/v1/att/get?prettyPrint=false",
@@ -103,10 +117,16 @@ async function generateIntegrityToken(botguardResponse: string) {
     body: JSON.stringify([REQUEST_KEY, botguardResponse]),
   });
   if (!response.ok) throw new Error(`GenerateIT returned ${response.status}`);
-  const [token, ttlSeconds] = (await response.json()) as [
-    string | null,
-    number?,
-  ];
+  // the endpoint answers a positional protobuf array; the token is not always
+  // first (`[token, ttl]` on the Waa host, `[null, ttl, null, token]` on
+  // youtube.com), so read it by type instead of position
+  const parsed = (await response.json()) as unknown[];
+  const token = parsed.find(
+    (value): value is string => typeof value === "string" && value.length > 0,
+  );
+  const ttlSeconds = parsed.find(
+    (value): value is number => typeof value === "number" && value > 0,
+  );
   if (!token) throw new Error("GenerateIT returned no integrity token");
   return { token, ...(ttlSeconds ? { ttlSeconds } : {}) };
 }
@@ -118,9 +138,14 @@ interface MinterEntry {
 
 let cached: MinterEntry | null = null;
 let pending: Promise<MinterEntry> | null = null;
+let unavailableUntil = 0;
 
-async function createMinter(): Promise<MinterEntry> {
-  const challenge = await fetchChallenge();
+const UNAVAILABLE_MS = 10 * 60 * 1000;
+
+async function challengeMinter(
+  challenge: Challenge,
+  label: string,
+): Promise<MinterEntry> {
   new Function(await loadInterpreter(challenge))();
   const botguard = await BotGuardClient.create({
     program: challenge.program,
@@ -128,8 +153,18 @@ async function createMinter(): Promise<MinterEntry> {
     globalObject: globalThis,
   });
   const webPoSignalOutput: Parameters<typeof WebPoMinter.create>[1] = [];
-  const botguardResponse = await botguard.snapshot({ webPoSignalOutput });
+  // the privacy buffer holds the minter back in some program builds, so ask
+  // again without it before giving up on this challenge
+  let botguardResponse = await botguard.snapshot({ webPoSignalOutput });
+  if (!webPoSignalOutput[0]) {
+    botguardResponse = await botguard.snapshot({
+      webPoSignalOutput,
+      skipPrivacyBuffer: true,
+    });
+  }
   const { token, ttlSeconds } = await generateIntegrityToken(botguardResponse);
+  if (!webPoSignalOutput[0])
+    throw new Error(`BotGuard returned no PO minter (${label}).`);
   const minter = await WebPoMinter.create(
     { integrityToken: token.replace(/\+/g, "-").replace(/\//g, "_") },
     webPoSignalOutput,
@@ -140,6 +175,22 @@ async function createMinter(): Promise<MinterEntry> {
     minter,
     expiresAt: Date.now() + Math.max(ttlMs - REFRESH_MARGIN_MS, 60_000),
   };
+}
+
+async function createMinter(): Promise<MinterEntry> {
+  const sources: [string, () => Promise<Challenge>][] = [
+    ["create", fetchCreateChallenge],
+    ["att", fetchAttChallenge],
+  ];
+  let lastError: unknown = new Error("BotGuard challenge is missing");
+  for (const [label, source] of sources) {
+    try {
+      return await challengeMinter(await source(), label);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 function currentMinter(): Promise<MinterEntry> {
@@ -160,10 +211,15 @@ export function resetWebMinter(): void {
 }
 
 export async function mintWebPoToken(identifier: string): Promise<string> {
+  // a broken challenge run costs a second of listening, so a failure parks the
+  // whole path for a while and playback moves on to the clients that need none
+  if (Date.now() < unavailableUntil)
+    throw new Error("BotGuard is not minting PO tokens here right now.");
   try {
     const { minter } = await currentMinter();
     return await minter.mintAsWebsafeString(identifier);
   } catch (error) {
+    unavailableUntil = Date.now() + UNAVAILABLE_MS;
     resetWebMinter();
     throw error;
   }

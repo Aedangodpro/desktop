@@ -92,6 +92,21 @@ the original is not. Only when every upload is refused does the track become a
 normal "track unavailable" error and the queue skips. The YouTube sign-in prompt
 is desktop-only, where the TV device flow can actually finish; a tab cannot.
 
+The relays also strip the browser's client hints (`sec-ch-ua`, `sec-fetch-*`) and
+run `x-liner-user-agent` into the real `user-agent`, the way the desktop main
+process swaps it. Forwarding a Chromium fingerprint next to `x-youtube-client-name`
+is itself enough for YouTube to answer 403 or "confirm you're not a bot" on
+requests that play fine without it.
+
+When YouTube flagging is decided by the address the request leaves from, and
+that address is a shared Worker, no client or visitor id helps: every profile
+answers `LOGIN_REQUIRED` while the same relay from another Cloudflare colo
+plays. The browser therefore mints its own PO tokens (`src/web/youtube/webMinter.ts`
+through BotGuard, challenge and `GenerateIT` relayed by `/__yt`) so WEB_REMIX can
+resolve with `serviceIntegrityDimensions.poToken`. Minting is best effort: if the
+challenge run yields no minter it is parked for ten minutes and playback falls
+back to the direct-url profiles.
+
 ### Deploying
 
 `dist-web/` is static, but the app is **not** functional without the proxies.

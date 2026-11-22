@@ -116,7 +116,9 @@ const INNERTUBE_HOSTS = new Set([
 ]);
 
 /** hosts reached for one narrow purpose only */
-const INNERTUBE_PATH_PREFIXES = new Map([["www.google.com", ["/js/bg/"]]]);
+const INNERTUBE_PATH_PREFIXES = new Map([
+  ["www.google.com", ["/js/bg/", "/js/th/"]],
+]);
 
 const OPEN_CORS_DOMAINS = [
   "tryliner.fun",
