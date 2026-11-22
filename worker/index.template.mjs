@@ -54,6 +54,28 @@ const PAGE_HEADERS = new Set([
 ]);
 
 /**
+ * Chromium tags every request with client hints. Innertube clients are native
+ * apps, so a hint set sent next to `x-youtube-client-name` describes a browser
+ * claiming to be an app: YouTube answers that mismatch with "Sign in to confirm
+ * you're not a bot" on every video, even though the same request without hints
+ * plays. The desktop main process forwards none of them either.
+ */
+const BROWSER_HINT_HEADERS = new Set([
+  "sec-fetch-dest",
+  "sec-fetch-mode",
+  "sec-fetch-site",
+  "sec-fetch-user",
+  "priority",
+  "dnt",
+  "sec-gpc",
+  "x-client-data",
+]);
+
+function isBrowserHint(name) {
+  return BROWSER_HINT_HEADERS.has(name) || name.startsWith("sec-ch-ua");
+}
+
+/**
  * Cloudflare adds these to the request the worker receives. Forwarding them to
  * another Cloudflare-fronted origin looks like a loop/spoof (the upstream sees
  * `cdn-loop` and a foreign `cf-connecting-ip`) and is answered with 403.
@@ -439,6 +461,14 @@ async function handleInnertube(request, url) {
     : new Uint8Array(await request.arrayBuffer());
 
   const headers = copyHeaders(request.headers, PAGE_HEADERS, true);
+  for (const name of [...headers.keys()]) {
+    if (isBrowserHint(name.toLowerCase())) headers.delete(name);
+  }
+  // the renderer asks for a client's own user agent the way it does on the
+  // desktop, where the main process swaps it into the real header
+  const nativeUserAgent = headers.get("x-liner-user-agent");
+  headers.delete("x-liner-user-agent");
+  if (nativeUserAgent) headers.set("user-agent", nativeUserAgent);
   headers.set("origin", `https://${host}`);
   headers.set("referer", `https://${host}/`);
 

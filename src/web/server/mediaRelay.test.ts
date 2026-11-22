@@ -257,6 +257,46 @@ describe("media relay", () => {
     expect(response.headers()["access-control-allow-origin"]).toBe("*");
   });
 
+  it("drops browser client hints and uses the client's own user agent", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const handle = createMediaRelay();
+    const response = mockResponse();
+
+    await handle(
+      mockRequest(
+        "/__yt/www.youtube.com/youtubei/v1/player?prettyPrint=false",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/141.0.0.0",
+            "sec-ch-ua": '"Chromium";v="141"',
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-site": "same-origin",
+            "x-liner-user-agent": "com.google.ios.youtube/20.10.4",
+            "x-youtube-client-name": "5",
+          },
+          body: "{}",
+        },
+      ),
+      response.res,
+    );
+    await response.finished;
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init.headers["user-agent"]).toBe("com.google.ios.youtube/20.10.4");
+    expect(init.headers["x-liner-user-agent"]).toBeUndefined();
+    expect(init.headers["sec-ch-ua"]).toBeUndefined();
+    expect(init.headers["sec-ch-ua-platform"]).toBeUndefined();
+    expect(init.headers["sec-fetch-site"]).toBeUndefined();
+    expect(init.headers["x-youtube-client-name"]).toBe("5");
+  });
+
   it("does not relay Innertube to a host outside the allowlist", async () => {
     const handle = createMediaRelay();
     const response = mockResponse();

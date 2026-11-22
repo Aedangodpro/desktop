@@ -63,6 +63,28 @@ const PAGE_HEADERS = new Set([
 ]);
 
 /**
+ * Chromium tags every request with client hints. Innertube clients are native
+ * apps, so a hint set sent next to `x-youtube-client-name` describes a browser
+ * claiming to be an app: YouTube answers that mismatch with "Sign in to confirm
+ * you're not a bot" on every video, even though the same request without hints
+ * plays. The desktop main process forwards none of them either.
+ */
+const BROWSER_HINT_HEADERS = new Set([
+  "sec-fetch-dest",
+  "sec-fetch-mode",
+  "sec-fetch-site",
+  "sec-fetch-user",
+  "priority",
+  "dnt",
+  "sec-gpc",
+  "x-client-data",
+]);
+
+function isBrowserHint(header: string): boolean {
+  return BROWSER_HINT_HEADERS.has(header) || header.startsWith("sec-ch-ua");
+}
+
+/**
  * googlevideo answers a range-less request, an open-ended `bytes=0-`, and a
  * range that runs past the end of the file with `403`; only a bounded range
  * inside the file answers `206`. Media elements open with exactly `bytes=0-`,
@@ -276,12 +298,21 @@ async function handleInnertube(
   const body = bodyless ? Buffer.alloc(0) : await readRequestBody(req);
 
   const headers: Record<string, string> = {};
+  let nativeUserAgent: string | undefined;
   for (const [name, value] of Object.entries(req.headers)) {
     const lower = name.toLowerCase();
     if (value === undefined) continue;
+    if (lower === "x-liner-user-agent") {
+      nativeUserAgent = Array.isArray(value) ? value[0] : value;
+      continue;
+    }
     if (HOP_BY_HOP.has(lower) || PAGE_HEADERS.has(lower)) continue;
+    if (isBrowserHint(lower)) continue;
     headers[lower] = Array.isArray(value) ? value.join(", ") : value;
   }
+  // the renderer asks for a client's own user agent the way it does on the
+  // desktop, where the main process swaps it into the real header
+  if (nativeUserAgent) headers["user-agent"] = nativeUserAgent;
   headers.host = host;
   // Innertube rejects some clients unless the request looks like it came from
   // the site that owns the endpoint.
