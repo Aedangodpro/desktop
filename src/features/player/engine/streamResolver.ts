@@ -7,6 +7,8 @@ import {
   STREAMS_REFUSED_MESSAGE,
   toVideoId,
 } from "@/shared/youtube";
+import { IOS_PROFILE } from "@/shared/youtube/innertube/playbackProfiles";
+import type { InnertubeProfile } from "@/shared/youtube/innertube/innertubeClient";
 import {
   isOfflineMode,
   OFFLINE_UNAVAILABLE_MESSAGE,
@@ -64,6 +66,7 @@ async function resolveYoutubeAudio(
   videoId: string,
   progressive: boolean,
   signal?: AbortSignal,
+  profiles?: readonly InnertubeProfile[],
 ): Promise<PlaybackStream> {
   if (
     isYoutubeSignedIn() &&
@@ -80,7 +83,10 @@ async function resolveYoutubeAudio(
     }
   }
   return fromInnertubeStream(
-    await resolveDirectAudioStream(videoId, { signal }),
+    await resolveDirectAudioStream(videoId, {
+      signal,
+      ...(profiles ? { profiles } : {}),
+    }),
   );
 }
 
@@ -126,8 +132,16 @@ async function resolveSoundCloud(
   }
 }
 
-/** Two other uploads is enough to ride out a bot check without a request storm. */
-const MAX_ALTERNATE_ATTEMPTS = 2;
+/** Each re-upload is a fresh chance at the bot check; three is the sweet spot. */
+const MAX_ALTERNATE_ATTEMPTS = 3;
+
+/**
+ * Re-uploads are probed with the client that actually hands audio to music
+ * videos, instead of sweeping every profile again, so more uploads fit in the
+ * same request budget.
+ */
+const REPLACEMENT_PROFILES: readonly InnertubeProfile[] | undefined =
+  IS_WEB_TARGET ? [IOS_PROFILE] : undefined;
 
 async function findPlaybackReplacements(
   track: PlayableTrack,
@@ -188,6 +202,7 @@ async function resolveYoutubeVideoWithStandIn(
           replacement,
           progressive,
           signal,
+          REPLACEMENT_PROFILES,
         );
         stream.standIn = true;
         return stream;
