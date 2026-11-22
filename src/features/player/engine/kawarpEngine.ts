@@ -240,7 +240,9 @@ export class KawarpEngine {
       antialias: false,
       depth: false,
       stencil: false,
-      preserveDrawingBuffer: true,
+      // Nothing reads the drawing buffer back; keeping a copy every frame is a
+      // straight cost on weaker GPUs.
+      preserveDrawingBuffer: false,
       powerPreference: "high-performance",
     });
     if (!gl) throw new Error("WebGL not supported");

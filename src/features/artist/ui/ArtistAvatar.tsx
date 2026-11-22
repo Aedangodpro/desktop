@@ -48,7 +48,10 @@ function AvatarCircle({ url, size, style, onError }: AvatarCircleProps) {
     >
       <span
         className={cn(
-          "absolute inset-0 animate-pulse rounded-full bg-current/20 transition-opacity duration-300",
+          // Pulse only while the avatar is actually loading: a permanently
+          // running animation keeps the compositor busy on every avatar.
+          "absolute inset-0 rounded-full bg-current/20 transition-opacity duration-300",
+          !loaded && "animate-pulse",
           loaded && "opacity-0",
         )}
       />

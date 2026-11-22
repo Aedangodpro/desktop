@@ -4,7 +4,11 @@ import { CheckFill, Magic2Fill, WarningFill } from "@mingcute/react";
 import { useTranslation } from "@/languages";
 import { cn, isWeakDevice } from "@/shared/lib";
 import { useFrameStrain } from "../hooks/useFrameStrain";
-import { VISUAL_MODES, useVisualModeStore } from "../store/visualModeStore";
+import {
+  VISUAL_MODES,
+  useEffectiveVisualMode,
+  useVisualModeStore,
+} from "../store/visualModeStore";
 
 interface BetaVisualsWarningProps {
   docked: boolean;
@@ -12,7 +16,7 @@ interface BetaVisualsWarningProps {
 
 export function BetaVisualsWarning({ docked }: BetaVisualsWarningProps) {
   const { t } = useTranslation();
-  const mode = useVisualModeStore((s) => s.mode);
+  const mode = useEffectiveVisualMode();
   const setMode = useVisualModeStore((s) => s.setMode);
   const ambientAvailable = useVisualModeStore((s) => s.ambientAvailable);
   const fullMode = mode === "full";

@@ -18,6 +18,7 @@ import { BetaVisualsWarning } from "./BetaVisualsWarning";
 import { CanvasLyricsView } from "./CanvasLyricsView";
 import { useTranslation } from "@/languages";
 import { useSettledLyricsLayout } from "../hooks/useSettledLyricsLayout";
+import { useAdaptiveVisuals } from "../hooks/useAdaptiveVisuals";
 
 const KAWARP_FADE_IN_MS = 600;
 
@@ -60,6 +61,7 @@ export function FullscreenPlayer({
 
   const kawarpEnabled = useKawarpEnabled();
   const glassBlur = useGlassBlur();
+  useAdaptiveVisuals(effectsReady);
   const [kawarpShown, setKawarpShown] = useState(false);
   const [kawarpWasEnabled, setKawarpWasEnabled] = useState(kawarpEnabled);
   if (kawarpWasEnabled !== kawarpEnabled) {
