@@ -1,10 +1,13 @@
 import { searchRaw, toVideoId } from "@/shared/youtube";
+import { cleanBaseTitle, normalizeWords } from "@/shared/media/matching";
 import {
-  cleanBaseTitle,
+  getChannelPerformanceTags,
+  getPerformanceTags,
+} from "@/shared/media/matching/performanceTags";
+import {
+  getChannelVersionTags,
   getVersionTags,
-  normalizeWords,
-} from "@/shared/media/matching";
-import { getPerformanceTags } from "@/shared/media/matching/performanceTags";
+} from "@/shared/media/matching/versionTags";
 import type { PlayableTrack } from "./playbackStream";
 
 /**
@@ -129,10 +132,23 @@ function mentionsArtist(artist: string, name: string): boolean {
   return wanted.every((word) => available.has(word));
 }
 
-/** Signals that an upload is another performance or another version. */
-function alternateSignals(value: string): Set<string> {
+/** Signals that a title describes another performance or another version. */
+function titleSignals(value: string): Set<string> {
   const signals = getVersionTags(value);
   for (const tag of getPerformanceTags(value)) signals.add(tag);
+  return signals;
+}
+
+/**
+ * The same for a channel or account name, from the narrower vocabulary those
+ * names can carry: an account called "Bass Nation" or "Live Nation" is not
+ * evidence of an instrumental or a concert recording, and treating it as such
+ * threw away correct uploads. A channel called "Absolute Journey Tribute" or
+ * "Killer Queen Band Page" still disqualifies itself.
+ */
+function channelSignals(value: string): Set<string> {
+  const signals = getChannelVersionTags(value);
+  for (const tag of getChannelPerformanceTags(value)) signals.add(tag);
   return signals;
 }
 
@@ -189,10 +205,10 @@ function isUploadNoise(qualifier: string): boolean {
  * release's own brackets, and upload furniture like "(Official Video)", stay
  * allowed.
  */
-function hasForeignQualifier(
+function foreignQualifier(
   sourceTitle: string,
   candidateTitle: string,
-): boolean {
+): string | null {
   const sourceQualifiers = qualifiers(sourceTitle);
   const sourceText = normalizeWords(sourceTitle);
   for (const qualifier of qualifiers(candidateTitle)) {
@@ -200,9 +216,9 @@ function hasForeignQualifier(
     if (sourceQualifiers.includes(qualifier)) continue;
     if (sourceText.includes(qualifier)) continue;
     if (isUploadNoise(qualifier)) continue;
-    return true;
+    return `(${qualifier})`;
   }
-  return false;
+  return null;
 }
 
 export interface RecordingMatch {
@@ -214,20 +230,46 @@ export interface RecordingMatch {
   ownArtist: boolean;
 }
 
+export type RecordingRejection =
+  | "empty_title"
+  | "duration"
+  | "missing_words"
+  | "publisher"
+  | "unattributed"
+  | "verified_other_artist"
+  | "version"
+  | "extra_words";
+
+export interface RecordingVerdict {
+  match: RecordingMatch | null;
+  /** set exactly when `match` is null, so a rejected pick can be explained */
+  reason?: RecordingRejection;
+  /** the evidence behind `reason`: the missing words, the marker, the name */
+  detail?: string;
+}
+
+function rejected(
+  reason: RecordingRejection,
+  detail?: string,
+): RecordingVerdict {
+  return detail ? { match: null, reason, detail } : { match: null, reason };
+}
+
 /**
- * How well an upload matches, or null when it is a different recording.
- * Measured lengths sort first (by distance); unmeasured ones are ranked by how
- * much noise the title carries.
+ * How well an upload matches, or why it is a different recording. Measured
+ * lengths sort first (by distance); unmeasured ones are ranked by how much
+ * noise the title carries. `sameRecordingMatch` is the yes/no view of this.
  */
-export function sameRecordingMatch(
+export function explainRecordingMatch(
   track: PlayableTrack,
   candidate: UploadCandidate,
-): RecordingMatch | null {
+): RecordingVerdict {
   const title = track.title.trim();
-  if (!title || !candidate.title.trim()) return null;
+  if (!title || !candidate.title.trim()) return rejected("empty_title");
 
   const gap = durationGap(track.durationMs, candidate.durationMs);
-  if (Number.isFinite(gap) && gap > DURATION_TOLERANCE_MS) return null;
+  if (Number.isFinite(gap) && gap > DURATION_TOLERANCE_MS)
+    return rejected("duration", `${Math.round(gap / 1000)}s off`);
 
   const primaryArtist = track.artists.split(",")[0]?.trim() ?? "";
   // The artist usually lives in the title ("Artist - Song"), so searching the
@@ -239,13 +281,17 @@ export function sameRecordingMatch(
       .filter(Boolean)
       .join(" "),
   );
-  if (!includesAll(candidateWords, required)) return null;
+  if (!includesAll(candidateWords, required))
+    return rejected(
+      "missing_words",
+      [...required].filter((word) => !candidateWords.has(word)).join(" "),
+    );
 
   // who published it: a cover credits its performer, a real re-upload credits
   // the record's artist (or nobody)
   const publisher = candidate.publisher?.trim() ?? "";
   if (primaryArtist && publisher && !namesArtist(primaryArtist, publisher))
-    return null;
+    return rejected("publisher", `published as ${publisher}`);
   const attributedMatch =
     primaryArtist.length > 0 &&
     (namesArtist(primaryArtist, publisher) ||
@@ -265,25 +311,29 @@ export function sameRecordingMatch(
     const uploaderNamesArtist =
       mentionsArtist(primaryArtist, uploader) &&
       ![...words(title)].some((word) => words(uploader).has(word));
-    if (!titleNamesArtist && !uploaderNamesArtist) return null;
+    if (!titleNamesArtist && !uploaderNamesArtist)
+      return rejected("unattributed", `uploaded by ${uploader || "nobody"}`);
     // A verified account is an artist's own page: if it is not this artist, the
     // upload is that artist performing this song.
-    if (candidate.uploaderVerified) return null;
+    if (candidate.uploaderVerified)
+      return rejected("verified_other_artist", `verified account ${uploader}`);
   }
 
-  const sourceSignals = alternateSignals(title);
-  const candidateSignals = alternateSignals(
-    [candidate.title, ...candidate.artists, uploader].filter(Boolean).join(" "),
-  );
+  const sourceSignals = titleSignals(title);
+  const candidateSignals = titleSignals(candidate.title);
+  for (const name of [...candidate.artists, uploader].filter(Boolean))
+    for (const tag of channelSignals(name)) candidateSignals.add(tag);
   // any version marker the release itself does not carry makes this a
   // different recording. The channel name counts as much as the title: an
   // upload of "Don't Stop Believin'" by "Absolute Journey Tribute" is a
   // re-performance, and "(Igor Blaska Edit)" is not the record that plays
-  // under the same title and length.
+  // under the same title and length. Channel names use the narrower
+  // vocabulary, though: "Bass Nation" is not an instrumental.
   for (const tag of candidateSignals) {
-    if (!sourceSignals.has(tag)) return null;
+    if (!sourceSignals.has(tag)) return rejected("version", tag);
   }
-  if (hasForeignQualifier(title, candidate.title)) return null;
+  const foreign = foreignQualifier(title, candidate.title);
+  if (foreign) return rejected("version", foreign);
 
   // title-only: the uploader's own name is not extra title noise
   const extraWords = Math.max(0, words(candidate.title).size - required.size);
@@ -292,10 +342,23 @@ export function sameRecordingMatch(
   // nothing else: the title is the song plus the artist, and at most one word
   // of uploader noise. "40 FINGERS - Bohemian Rhapsody Queen" is a cello duo
   // covering it, and no keyword recognises "40 FINGERS".
-  if (!ownArtist && extraWords > MAX_UNMEASURED_EXTRA_WORDS) return null;
+  if (!ownArtist && extraWords > MAX_UNMEASURED_EXTRA_WORDS)
+    return rejected("extra_words", `${extraWords} extra title words`);
   if (!Number.isFinite(gap))
-    return { rank: DURATION_TOLERANCE_MS + extraWords, extraWords, ownArtist };
-  return { rank: gap, extraWords, ownArtist };
+    return {
+      match: { rank: DURATION_TOLERANCE_MS + extraWords, extraWords, ownArtist },
+    };
+  return { match: { rank: gap, extraWords, ownArtist } };
+}
+
+/**
+ * How well an upload matches, or null when it is a different recording.
+ */
+export function sameRecordingMatch(
+  track: PlayableTrack,
+  candidate: UploadCandidate,
+): RecordingMatch | null {
+  return explainRecordingMatch(track, candidate).match;
 }
 
 export function sameRecordingRank(

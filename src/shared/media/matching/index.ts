@@ -24,6 +24,9 @@ export {
   recordingProfile,
   type RecordingProfile,
 } from "./sameRecording";
-export { getVersionTags } from "./versionTags";
-export { getPerformanceTags } from "./performanceTags";
+export { getChannelVersionTags, getVersionTags } from "./versionTags";
+export {
+  getChannelPerformanceTags,
+  getPerformanceTags,
+} from "./performanceTags";
 export { artistsMatch } from "./artists";

@@ -31,6 +31,31 @@ export function getVersionTags(value: string): Set<string> {
   return tags;
 }
 
+/**
+ * Version words a channel name can establish. "Bass Nation" and "Live Nation"
+ * are ordinary account names, not evidence of a bass boost or a concert
+ * recording, so those words only count when they appear in the upload title.
+ */
+const CHANNEL_VERSION_TAGS = new Set([
+  "remix",
+  "vip",
+  "flip",
+  "bootleg",
+  "mashup",
+  "slowed",
+  "sped_up",
+  "nightcore",
+  "bass_boosted",
+]);
+
+export function getChannelVersionTags(value: string): Set<string> {
+  const tags = new Set<string>();
+  for (const { tag, regex } of VERSION_PATTERNS) {
+    if (CHANNEL_VERSION_TAGS.has(tag) && regex.test(value)) tags.add(tag);
+  }
+  return tags;
+}
+
 export function getVersionTag(value: string): string | null {
   const tags = getVersionTags(value);
   return tags.size > 0 ? Array.from(tags)[0] : null;

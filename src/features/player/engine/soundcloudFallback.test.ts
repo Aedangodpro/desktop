@@ -101,6 +101,33 @@ describe("findSoundCloudUploads", () => {
     await expect(findSoundCloudUploads(hello)).resolves.toEqual([]);
   });
 
+  it("logs why each rejected candidate was thrown away", async () => {
+    const lines: string[] = [];
+    const spy = vi
+      .spyOn(console, "log")
+      .mockImplementation((...args: unknown[]) => {
+        lines.push(args.map((arg) => String(arg)).join(" "));
+      });
+    try {
+      mocks.searchSoundCloudTracks.mockResolvedValue([
+        hit(
+          "sc:10",
+          "Astronaut - Apollo (Radio Edit) (Karaoke Version)",
+          "Sing King",
+          186_000,
+        ),
+      ]);
+      await expect(findSoundCloudUploads(apollo)).resolves.toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+
+    const output = lines.join("\n");
+    expect(output).toContain("Astronaut - Apollo (Radio Edit) (Karaoke Version)");
+    expect(output).toContain("by Sing King");
+    expect(output).toContain("version (karaoke)");
+  });
+
   it("asks both queries at once, with the deeper result limit", async () => {
     mocks.searchSoundCloudTracks.mockResolvedValue([
       hit("sc:5", "Astronaut - Apollo (Radio Edit)", "Astronaut", 186_000),

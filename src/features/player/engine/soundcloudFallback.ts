@@ -4,7 +4,7 @@ import {
 } from "@/shared/media/soundcloud";
 import { rethrowIfAborted } from "@/shared/utils/abort";
 import { log } from "@/shared/utils/logger";
-import { sameRecordingMatch } from "./playbackAlternates";
+import { explainRecordingMatch } from "./playbackAlternates";
 import type { PlayableTrack } from "./playbackStream";
 
 /**
@@ -81,7 +81,7 @@ export async function findSoundCloudUploads(
     for (const hit of hits) {
       if (seen.has(hit.track.id)) continue;
       seen.add(hit.track.id);
-      const match = sameRecordingMatch(track, {
+      const verdict = explainRecordingMatch(track, {
         title: hit.track.title,
         artists: hit.track.artists.map((entry) => entry.name),
         // the label's own attribution, not the uploader account: anyone can
@@ -91,7 +91,18 @@ export async function findSoundCloudUploads(
         uploaderVerified: hit.uploaderVerified,
         durationMs: hit.track.durationMs,
       });
-      if (match === null) continue;
+      const match = verdict.match;
+      if (match === null) {
+        // every rejection, with the rule that made it: the next wrong-song
+        // report can name the upload that was picked *and* what the rules
+        // threw away for being closer.
+        log(
+          "gray",
+          "playback",
+          `soundcloud rejected "${hit.track.title}" by ${hit.uploader} for "${track.title}": ${verdict.reason}${verdict.detail ? ` (${verdict.detail})` : ""}`,
+        );
+        continue;
+      }
       found.push({
         id: hit.track.id,
         rank: match.rank,

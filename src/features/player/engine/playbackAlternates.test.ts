@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isSameRecordingUpload, type UploadCandidate } from "./playbackAlternates";
+import {
+  explainRecordingMatch,
+  isSameRecordingUpload,
+  type UploadCandidate,
+} from "./playbackAlternates";
 import type { PlayableTrack } from "./playbackStream";
 
 const apollo: PlayableTrack = {
@@ -226,6 +230,42 @@ describe("isSameRecordingUpload", () => {
     ).toBe(true);
   });
 
+  it("accepts a correct upload from a channel named after an instrument", () => {
+    // "Bass Nation" was read as an instrumental arrangement and threw away the
+    // real upload
+    expect(
+      isSameRecordingUpload(
+        apollo,
+        upload("Astronaut - Apollo (Radio Edit)", ["Bass Nation"], 186_000, {
+          uploader: "Bass Nation",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts a correct upload from a channel named after a concert promoter", () => {
+    // "Live Nation" used to add a "live" version marker by itself
+    expect(
+      isSameRecordingUpload(
+        apollo,
+        upload("Astronaut - Apollo (Radio Edit)", ["Live Nation"], 186_000, {
+          uploader: "Live Nation",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("still rejects a channel that calls itself a tribute band", () => {
+    expect(
+      isSameRecordingUpload(
+        apollo,
+        upload("Astronaut - Apollo (Radio Edit)", ["Absolute Astronaut Tribute"], 186_000, {
+          uploader: "Absolute Astronaut Tribute",
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("rejects an unmeasured video that only shares the song name", () => {
     expect(
       isSameRecordingUpload(
@@ -233,5 +273,55 @@ describe("isSameRecordingUpload", () => {
         upload("THE ASTRONAUT (APOLLO 13)", ["GTL Music Promotions"], 0),
       ),
     ).toBe(false);
+  });
+});
+
+describe("explainRecordingMatch", () => {
+  it("names the rule that rejected a candidate", () => {
+    const loser: PlayableTrack = {
+      id: "loserVid",
+      title: "Loser",
+      artists: "Tame Impala",
+      durationMs: 224_000,
+    };
+    expect(
+      explainRecordingMatch(
+        loser,
+        upload(
+          "Loser - Tame Impala (The Arabic Version/Rendition)",
+          ["YAD Oud"],
+          226_000,
+          { publisher: "YAD Oud", uploader: "YAD Oud" },
+        ),
+      ),
+    ).toMatchObject({
+      match: null,
+      reason: "publisher",
+      detail: "published as YAD Oud",
+    });
+
+    const letItHappen: PlayableTrack = {
+      id: "letItHappenVid",
+      title: "Let It Happen",
+      artists: "Tame Impala",
+      durationMs: 467_000,
+    };
+    expect(
+      explainRecordingMatch(
+        letItHappen,
+        upload("Tame Impala - Let It Happen (Full Step Down)", ["Pearson Buck"], 474_000),
+      ),
+    ).toMatchObject({
+      match: null,
+      reason: "version",
+      detail: "(full step down)",
+    });
+
+    expect(
+      explainRecordingMatch(
+        apollo,
+        upload("Astronaut - Apollo", ["Astronaut"], 263_000),
+      ),
+    ).toMatchObject({ match: null, reason: "duration", detail: "77s off" });
   });
 });

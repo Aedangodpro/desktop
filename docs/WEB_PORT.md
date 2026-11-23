@@ -102,7 +102,11 @@ to a different artist in `publisher_metadata.artist` is never played, a verified
 account that is not this artist is a cover artist's own page, a bracketed part
 the release does not have (`(Full Step Down)`, `(The Arabic Version/Rendition)`)
 is another version, and an upload nobody credits to the artist may only add one
-word to the release title. A song whose only playable SoundCloud copy is a
+word to the release title. A channel that calls itself a cover, tribute or
+karaoke act counts against an upload; a channel name that merely contains an
+instrument or the word "live" ("Bass Nation", "Live Nation") does not, since
+those are ordinary account names. Every candidate the SoundCloud fallback
+rejects is logged with the rule that rejected it. A song whose only playable SoundCloud copy is a
 re-performance now reports itself unavailable instead of playing the wrong
 recording.
 

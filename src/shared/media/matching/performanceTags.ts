@@ -53,3 +53,30 @@ export function getPerformanceTags(value: string): Set<string> {
   }
   return tags;
 }
+
+/**
+ * The markers a channel or account name can establish. The rest of the list is
+ * title evidence only: "Bass Nation" and "Live Nation" are ordinary account
+ * names, so reading "bass" or "live" off them disqualified correct uploads of
+ * the song. What an account calls itself ("covers", "tribute band", "karaoke")
+ * still counts.
+ */
+const CHANNEL_TAGS = new Set([
+  "cover",
+  "tribute",
+  "ensemble",
+  "karaoke",
+  "rendition",
+  "in_style_of",
+  "instruction",
+  "instrumental",
+  "novelty",
+]);
+
+export function getChannelPerformanceTags(value: string): Set<string> {
+  const tags = new Set<string>();
+  for (const { tag, regex } of PERFORMANCE_PATTERNS) {
+    if (CHANNEL_TAGS.has(tag) && regex.test(value)) tags.add(tag);
+  }
+  return tags;
+}
