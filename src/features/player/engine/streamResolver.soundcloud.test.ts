@@ -245,6 +245,37 @@ describe("resolvePlaybackStream for soundcloud ids", () => {
     expect(stream).toMatchObject({ source: "soundcloud", standIn: true });
   });
 
+  it("stops the unused soundcloud search when a youtube replacement plays", async () => {
+    mocks.resolveDirectAudioStream
+      .mockRejectedValueOnce(
+        new Error("This track cannot be played in this browser right now."),
+      )
+      .mockResolvedValue(directStream);
+    mocks.searchRaw.mockResolvedValue([
+      searchTrack("repl0000001", "Apollo (Radio Edit)", "Astronaut", 186_000),
+    ]);
+    let searchSignal: AbortSignal | undefined;
+    mocks.searchSoundCloudTracks.mockImplementation(
+      (_query: string, signal: AbortSignal) => {
+        searchSignal = signal;
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    );
+
+    const stream = await resolvePlaybackStream(
+      track("BKVyNI7f9zc", "Apollo (Radio Edit)", "Astronaut", 186_000),
+    );
+
+    expect(stream).toMatchObject({ standIn: true });
+    expect(searchSignal?.aborted).toBe(true);
+  });
+
   it("reports the youtube refusal when soundcloud has no matching upload", async () => {
     const refusal = new Error(
       "This track cannot be played in this browser right now.",

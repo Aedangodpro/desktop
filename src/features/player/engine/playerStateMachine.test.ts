@@ -139,6 +139,17 @@ describe("Player State Machine", () => {
     expect(state.currentIndex).toBe(-1);
   });
 
+  it("plays the requested track when it is missing from the queue it was opened with", async () => {
+    const queued = mockTrack("q-1", "Queued");
+    const requested = mockTrack("q-2", "Requested");
+
+    await playerEngine.playTrack(requested, [queued]);
+
+    const state = usePlayerStore.getState();
+    expect(state.currentTrack?.id).toBe("q-2");
+    expect(state.queue.map((item) => item.id)).toContain("q-2");
+  });
+
   it("restarts track when skipPrevious is called after 3 seconds", async () => {
     const tracks = [mockTrack("1", "Track 1"), mockTrack("2", "Track 2")];
     await playerEngine.playTrack(tracks[1], tracks, undefined, undefined, 1);

@@ -483,14 +483,22 @@ class PlayerEngine {
     preserveQueue?: boolean,
   ): Promise<void> {
     const store = usePlayerStore.getState();
-    const nextQueue = this.normalizeQueue(queue ?? [track], track);
+    let nextQueue = this.normalizeQueue(queue ?? [track], track);
+    // A queue that does not contain the requested track used to fall back to
+    // index 0, so opening a song with a stale or filtered list played whatever
+    // was first in it. The track that was asked for always plays: it joins the
+    // front of the list when it is missing.
+    let foundIndex = nextQueue.findIndex((item) => item.id === track.id);
+    if (foundIndex === -1) {
+      nextQueue = [track, ...nextQueue];
+      foundIndex = 0;
+    }
+    // queueIndex indexes the list the caller passed, so it is trusted only when
+    // it still points at the requested track (a shuffled queue can differ).
     const nextIndex =
-      queueIndex !== undefined
+      queueIndex !== undefined && nextQueue[queueIndex]?.id === track.id
         ? queueIndex
-        : Math.max(
-            0,
-            nextQueue.findIndex((item) => item.id === track.id),
-          );
+        : foundIndex;
 
     this.sessionId += 1;
     const mySession = this.sessionId;

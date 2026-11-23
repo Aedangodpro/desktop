@@ -774,23 +774,30 @@ export class PlayerRuntime {
   public setPendingSeek(positionMs: number): void {
     this.pendingStartPositionMs = positionMs;
     usePlayerStore.getState().setPosition(positionMs);
-    if (this.audio.src && this.audio.src !== window.location.href) {
-      try {
-        if (this.audio.readyState >= 1) {
-          this.audio.currentTime = positionMs / 1000;
-        } else {
-          this.audio.addEventListener(
-            "loadedmetadata",
-            () => {
-              try {
-                this.audio.currentTime = positionMs / 1000;
-              } catch {}
-            },
-            { once: true },
-          );
-        }
-      } catch {}
-    }
+    if (!this.audio.src || this.audio.src === window.location.href) return;
+    try {
+      if (this.audio.readyState >= 1) {
+        this.audio.currentTime = positionMs / 1000;
+        return;
+      }
+      // The listener belongs to the load that is running now. Without this
+      // guard a seek made before the metadata of track A arrived would fire on
+      // track B's `loadedmetadata` and start B at A's position, which at worst
+      // is past B's end and ends it immediately.
+      const trackId = this.currentTrackId;
+      const epoch = this.loadEpoch;
+      this.audio.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (this.currentTrackId !== trackId || this.loadEpoch !== epoch)
+            return;
+          try {
+            this.audio.currentTime = positionMs / 1000;
+          } catch {}
+        },
+        { once: true },
+      );
+    } catch {}
   }
 
   public loadAndPlay(

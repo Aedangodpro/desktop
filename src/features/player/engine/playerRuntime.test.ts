@@ -499,6 +499,36 @@ describe("PlayerRuntime audio caching", () => {
     expect(stored).toBeNull();
   });
 
+  it("does not carry a seek made during one load onto the next track", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
+      .audio;
+    Object.defineProperty(audio, "currentTime", {
+      value: 0,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(audio, "readyState", { value: 0, configurable: true });
+    audio.src = "blob:pending-seek-a";
+    // the user drags the timeline while track A has no metadata yet, then picks
+    // track B before A ever fires loadedmetadata
+    playerRuntime!.setPendingSeek(60_000);
+
+    mocks.resolvePlaybackStream.mockResolvedValue(urlStream);
+    const next: Track = {
+      ...track,
+      id: "pending-seek-b",
+      title: "Next",
+    };
+    await playerRuntime!.loadAndPlay(next);
+    audio.dispatchEvent(new Event("loadedmetadata"));
+
+    // track B must start at its own position, not A's seek target
+    expect(audio.currentTime).toBe(0);
+    Reflect.deleteProperty(audio, "readyState");
+    Reflect.deleteProperty(audio, "currentTime");
+  });
+
   it("drops an unreadable cached file, recovers from the network once and does not cache a dash segment", async () => {
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     const resolveSpy = mocks.resolvePlaybackStream.mockResolvedValue(urlStream);

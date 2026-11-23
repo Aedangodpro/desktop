@@ -227,43 +227,56 @@ async function resolveYoutubeVideoWithStandIn(
       error.message.startsWith(STREAMS_REFUSED_MESSAGE);
     // The other catalog is searched now rather than after the YouTube probes:
     // it is one relayed request that runs next to them, and when this network
-    // is refused it is the only source that can answer at all.
-    const soundCloudSearch = findSoundCloudUploads(track, signal).catch(
-      () => [] as string[],
-    );
-    if (!everyClientRefused) {
-      const replacements = await findPlaybackReplacements(
-        track,
-        videoId,
-        signal,
-      );
-      for (const replacement of replacements) {
-        log(
-          "yellow",
-          "playback",
-          `youtube refused ${videoId}, trying the stand-in ${replacement} for "${track.title}"`,
+    // is refused it is the only source that can answer at all. Its own
+    // controller follows the load's signal, and cancels a search nobody will
+    // read once a replacement plays: the search costs two relayed requests and
+    // logs a line per rejected hit otherwise.
+    const soundCloudController = new AbortController();
+    const forwardAbort = () => soundCloudController.abort(signal?.reason);
+    if (signal?.aborted) forwardAbort();
+    else signal?.addEventListener("abort", forwardAbort, { once: true });
+    const soundCloudSearch = findSoundCloudUploads(
+      track,
+      soundCloudController.signal,
+    ).catch(() => [] as string[]);
+    try {
+      if (!everyClientRefused) {
+        const replacements = await findPlaybackReplacements(
+          track,
+          videoId,
+          signal,
         );
-        try {
-          const stream = await resolveYoutubeAudio(
-            replacement,
-            progressive,
-            signal,
-            REPLACEMENT_PROFILES,
+        for (const replacement of replacements) {
+          log(
+            "yellow",
+            "playback",
+            `youtube refused ${videoId}, trying the stand-in ${replacement} for "${track.title}"`,
           );
-          stream.standIn = true;
-          return stream;
-        } catch (replacementError) {
-          if (isAbortError(replacementError, signal)) throw replacementError;
+          try {
+            const stream = await resolveYoutubeAudio(
+              replacement,
+              progressive,
+              signal,
+              REPLACEMENT_PROFILES,
+            );
+            stream.standIn = true;
+            return stream;
+          } catch (replacementError) {
+            if (isAbortError(replacementError, signal)) throw replacementError;
+          }
         }
       }
+      const soundCloud = await playSoundCloudUploads(
+        track,
+        await soundCloudSearch,
+        signal,
+      );
+      if (soundCloud) return soundCloud;
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", forwardAbort);
+      soundCloudController.abort();
     }
-    const soundCloud = await playSoundCloudUploads(
-      track,
-      await soundCloudSearch,
-      signal,
-    );
-    if (soundCloud) return soundCloud;
-    throw error;
   }
 }
 
