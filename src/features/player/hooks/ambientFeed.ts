@@ -16,7 +16,16 @@ export function playbackState() {
   };
 }
 
-export function startAmbientFeed(worker: Worker): () => void {
+export interface AmbientFeed {
+  /** Rerun the run/pause decision, e.g. after the layer went off screen. */
+  refresh: () => void;
+  stop: () => void;
+}
+
+export function startAmbientFeed(
+  worker: Worker,
+  isElementVisible: () => boolean = () => true,
+): AmbientFeed {
   let running = true;
   let pauseTimer: number | undefined;
 
@@ -33,13 +42,14 @@ export function startAmbientFeed(worker: Worker): () => void {
       worker.postMessage({ type: "pause" });
     }, AMBIENT_FADE_MS);
   };
-  const sync = () => setRunning(isWindowVisible() && isPlaying());
+  const sync = () =>
+    setRunning(isElementVisible() && isWindowVisible() && isPlaying());
 
   const sendState = () => {
     if (running) worker.postMessage({ type: "state", state: playbackState() });
   };
 
-  if (!isWindowVisible() || !isPlaying()) {
+  if (!isElementVisible() || !isWindowVisible() || !isPlaying()) {
     running = false;
     worker.postMessage({ type: "pause" });
   }
@@ -49,10 +59,13 @@ export function startAmbientFeed(worker: Worker): () => void {
     if (state.status !== previous.status) sync();
   });
 
-  return () => {
-    window.clearInterval(stateTimer);
-    window.clearTimeout(pauseTimer);
-    stopWatchingVisibility();
-    stopWatchingPlayer();
+  return {
+    refresh: sync,
+    stop: () => {
+      window.clearInterval(stateTimer);
+      window.clearTimeout(pauseTimer);
+      stopWatchingVisibility();
+      stopWatchingPlayer();
+    },
   };
 }

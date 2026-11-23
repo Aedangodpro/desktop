@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const engine = vi.hoisted(() => ({
   resize: vi.fn(),
   start: vi.fn(),
+  setVisible: vi.fn(),
   dispose: vi.fn(),
   loadImage: vi.fn(async () => {}),
 }));

@@ -12,6 +12,7 @@ export class FrameLoop {
   private rafId: number | null = null;
   private pollId: number | null = null;
   private lastFrame = 0;
+  private active = true;
   private readonly stopWatchingVisibility: () => void;
 
   constructor(private readonly tick: FrameTick) {
@@ -20,7 +21,26 @@ export class FrameLoop {
     });
   }
 
+  /**
+   * Stops scheduling entirely while the canvas is off screen or display: none.
+   * The document visibility check cannot see either of those.
+   */
+  setActive(active: boolean) {
+    if (active === this.active) return;
+    this.active = active;
+    if (!active) {
+      if (this.rafId !== null) cancelAnimationFrame(this.rafId);
+      if (this.pollId !== null) window.clearTimeout(this.pollId);
+      this.rafId = null;
+      this.pollId = null;
+      return;
+    }
+    this.lastFrame = 0;
+    this.poke();
+  }
+
   poke() {
+    if (!this.active) return;
     if (this.pollId !== null) {
       window.clearTimeout(this.pollId);
       this.pollId = null;
@@ -39,7 +59,7 @@ export class FrameLoop {
 
   private readonly onFrame = (now: number) => {
     this.rafId = null;
-    if (!isWindowVisible()) return;
+    if (!this.active || !isWindowVisible()) return;
     const elapsed =
       this.lastFrame === 0 ? 16 : Math.min(100, now - this.lastFrame);
     this.lastFrame = now;

@@ -2,6 +2,8 @@ import { getApiBaseUrl } from "@/shared/api/baseUrl";
 import { isLocalTrackId } from "@/shared/media/local";
 
 const DEV_OVERRIDE_KEY = "liner_ambient_dev_script";
+/** Scripts are a few KB each; keep a bounded window instead of every track. */
+export const AMBIENT_SCRIPT_CACHE_LIMIT = 40;
 const scripts = new Map<string, string | null>();
 const inFlight = new Map<string, Promise<string | null>>();
 
@@ -40,6 +42,11 @@ export function loadAmbientScript(trackId: string): Promise<string | null> {
   const request = download(trackId)
     .then((script) => {
       scripts.set(trackId, script);
+      while (scripts.size > AMBIENT_SCRIPT_CACHE_LIMIT) {
+        const oldest = scripts.keys().next().value;
+        if (oldest === undefined) break;
+        scripts.delete(oldest);
+      }
       return script;
     })
     .catch(() => null)

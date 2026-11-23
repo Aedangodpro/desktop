@@ -213,6 +213,7 @@ export class KawarpEngine {
   private lastFrameTime = 0;
   private accumulatedTime = 0;
   private isPlaying = false;
+  private elementVisible = true;
 
   private isTransitioning = false;
   private transitionStartTime = 0;
@@ -504,6 +505,24 @@ export class KawarpEngine {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
+  /**
+   * Pauses the loop while the canvas is off screen or inside a hidden page.
+   * `isWindowVisible()` cannot see either, so a player kept mounted behind a
+   * route change would otherwise keep rendering at 30 fps for nothing.
+   */
+  public setVisible(visible: boolean) {
+    if (visible === this.elementVisible) return;
+    this.elementVisible = visible;
+    if (!visible) {
+      if (this.animationId !== null) cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+      return;
+    }
+    if (!this.isPlaying || this.animationId !== null) return;
+    this.lastFrameTime = performance.now();
+    this.animationId = requestAnimationFrame(this.renderLoop);
+  }
+
   public start() {
     if (this.isPlaying) return;
     this.isPlaying = true;
@@ -521,7 +540,7 @@ export class KawarpEngine {
 
   private renderLoop = (timestamp: number) => {
     if (!this.isPlaying) return;
-    if (!isWindowVisible()) {
+    if (!this.elementVisible || !isWindowVisible()) {
       this.animationId = null;
       return;
     }

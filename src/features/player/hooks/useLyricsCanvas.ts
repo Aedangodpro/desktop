@@ -3,11 +3,15 @@ import type { Lyric } from "@braccato/parsers";
 import { LyricsCanvasRenderer } from "@/features/lyrics";
 import { usePlayerStore } from "../store/playerStore";
 import { playerEngine } from "../engine/playerEngine";
+import { observeElementVisible } from "@/shared/utils/elementVisibility";
 import { shouldReleaseTopPin, startsPinnedToTop } from "../ui/lyricsTopPin";
 import { audioElement, createMediaClock } from "./mediaClock";
 import { snapStage } from "./pixelSnap";
 
-const SNAP_CHECK_MS = 250;
+// The stage is a canvas that fills the host, so the ResizeObserver already
+// covers ordinary resizes. This slow poll only catches device-pixel-ratio and
+// zoom changes, and every tick costs a forced layout.
+const SNAP_CHECK_MS = 1000;
 
 export interface ScrollEdges {
   atTop: boolean;
@@ -75,6 +79,11 @@ export function useLyricsCanvas(
     const observer = new ResizeObserver(snap);
     observer.observe(host);
     const snapTimer = window.setInterval(snap, SNAP_CHECK_MS);
+    // Off-screen (or display: none in a kept page) the loop has nothing to
+    // show; stop scheduling frames until the panel is back.
+    const stopObserving = observeElementVisible(host, (visible) =>
+      renderer.setActive(visible),
+    );
 
     const stopWatchingPlayer = usePlayerStore.subscribe((state, previous) => {
       if (
@@ -99,6 +108,7 @@ export function useLyricsCanvas(
     });
 
     return () => {
+      stopObserving();
       stopWatchingPlayer();
       window.clearInterval(snapTimer);
       observer.disconnect();

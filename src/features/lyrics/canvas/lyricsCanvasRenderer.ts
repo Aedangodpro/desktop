@@ -89,6 +89,11 @@ export class LyricsCanvasRenderer {
     this.loop.poke();
   }
 
+  /** Pause drawing while the canvas is off screen or in a hidden page. */
+  setActive(active: boolean) {
+    this.loop.setActive(active);
+  }
+
   dispose() {
     this.loop.dispose();
     this.scene.dispose();

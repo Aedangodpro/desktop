@@ -4,6 +4,7 @@ import { cn } from "@/shared/lib";
 import { AMBIENT_FADE_MS } from "../hooks/ambientFeed";
 import { useAmbientMask } from "../hooks/useAmbientMask";
 import {
+  ambientCssBlur,
   useAmbientWorker,
   type AmbientOptions,
 } from "../hooks/useAmbientWorker";
@@ -49,6 +50,7 @@ function AmbientCanvas({ script, visible }: AmbientCanvasProps) {
     hostRef,
     options?.pixelated ?? false,
     failed ? null : script,
+    mask,
     fail,
     setOptions,
   );
@@ -58,9 +60,8 @@ function AmbientCanvas({ script, visible }: AmbientCanvasProps) {
       ref={hostRef}
       aria-hidden
       style={{
-        ...mask,
         transitionDuration: `${AMBIENT_FADE_MS}ms`,
-        filter: options?.blur ? `blur(${options.blur}px)` : undefined,
+        filter: ambientCssBlur(options?.blur),
       }}
       className={cn(
         "pointer-events-none absolute inset-0 transition-opacity ease-out",

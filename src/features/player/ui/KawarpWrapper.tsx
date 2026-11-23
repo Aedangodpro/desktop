@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { KawarpEngine } from "../engine/kawarpEngine";
 import { getCoverElement, useCoverElement } from "@/features/covers";
+import { observeElementVisible } from "@/shared/utils/elementVisibility";
 
 export const KAWARP_RESIZE_SETTLE_MS = 300;
 export const KAWARP_RENDER_SCALE = 0.5;
@@ -15,6 +16,7 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<KawarpEngine | null>(null);
+  const visibleRef = useRef(true);
   const [loaded, setLoaded] = useState(false);
   const coverElement = useCoverElement(src);
 
@@ -34,6 +36,7 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
         dithering: 0.008,
       });
       engineRef.current = engine;
+      engine.setVisible(visibleRef.current);
       engine.start();
     } catch (err) {
       onError?.(err instanceof Error ? err : new Error(String(err)));
@@ -45,6 +48,15 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
       engineRef.current = null;
     };
   }, [onError]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    return observeElementVisible(container, (visible) => {
+      visibleRef.current = visible;
+      engineRef.current?.setVisible(visible);
+    });
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
