@@ -566,15 +566,18 @@ function MiniPlayer({
   const activeProgress = scrubRatio !== null ? scrubRatio : secondProgress;
 
   // anything other than the regular one-step tick (a new track, a seek, a
-  // repeat) is a jump: it eases out quickly instead of crawling linearly
-  const [shownProgress, setShownProgress] = useState(secondProgress);
-  const [progressJumped, setProgressJumped] = useState(false);
-  if (secondProgress !== shownProgress) {
-    const delta = secondProgress - shownProgress;
+  // repeat) is a jump: it eases out quickly instead of crawling linearly.
+  // This is kept in refs rather than state: setting state during render made
+  // React render the whole player bar a second time on every position tick.
+  const shownProgressRef = useRef(secondProgress);
+  const progressJumpedRef = useRef(false);
+  if (secondProgress !== shownProgressRef.current) {
+    const delta = secondProgress - shownProgressRef.current;
     const step = durationMs > 0 ? PROGRESS_STEP_MS / durationMs : 0;
-    setProgressJumped(delta < 0 || delta > step * 1.5);
-    setShownProgress(secondProgress);
+    progressJumpedRef.current = delta < 0 || delta > step * 1.5;
+    shownProgressRef.current = secondProgress;
   }
+  const progressJumped = progressJumpedRef.current;
 
   return (
     <div
