@@ -3,7 +3,10 @@ import { motion } from "framer-motion";
 import { AddLine, CheckLine, CloseLine } from "@mingcute/react";
 import { useTranslation } from "@/languages";
 import { cn } from "@/shared/lib";
-import { usePlayerState } from "../hooks/usePlayerState";
+import {
+  usePlayerStore,
+} from "../store/playerStore";
+import { useShallow } from "zustand/react/shallow";
 import { playerEngine } from "../engine/playerEngine";
 import {
   EQ_BANDS,
@@ -138,10 +141,15 @@ export const EqualizerPicker = memo(function EqualizerPicker({
   className,
 }: EqualizerPickerProps) {
   const { t } = useTranslation();
-  const player = usePlayerState();
-  const isEqEnabled = player.isEqEnabled ?? false;
-  const eqGains = player.eqGains ?? FLAT_EQ;
-  const customPresets = player.eqCustomPresets ?? [];
+  // only the EQ settings are read here: the playhead used to re-render the
+  // whole picker (bands, presets, inputs) several times a second
+  const { isEqEnabled, eqGains, customPresets } = usePlayerStore(
+    useShallow((state) => ({
+      isEqEnabled: state.isEqEnabled ?? false,
+      eqGains: state.eqGains ?? FLAT_EQ,
+      customPresets: state.eqCustomPresets ?? [],
+    })),
+  );
   const activePreset = findEqPreset(eqGains);
   const activeCustom = activePreset
     ? null

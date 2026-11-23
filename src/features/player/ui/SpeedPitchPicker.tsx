@@ -3,7 +3,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { SparklesFill } from "@mingcute/react";
 import { useTranslation } from "@/languages";
 import { cn } from "@/shared/lib";
-import { usePlayerState } from "../hooks/usePlayerState";
+import { usePlayerStore } from "../store/playerStore";
+import { useShallow } from "zustand/react/shallow";
 import { playerEngine } from "../engine/playerEngine";
 import { RulerControl } from "./speed/RulerControl";
 import { OptionToggle } from "./speed/OptionToggle";
@@ -26,7 +27,18 @@ export const SpeedPitchPicker = memo(function SpeedPitchPicker({
   className,
 }: SpeedPitchPickerProps) {
   const { t } = useTranslation();
-  const player = usePlayerState();
+  // this popup does not depend on the playhead; subscribing to the whole store
+  // re-rendered it (and its animated rows) on every position tick
+  const player = usePlayerStore(
+    useShallow((state) => ({
+      playbackRate: state.playbackRate ?? 1,
+      pitchSemitones: state.pitchSemitones ?? 0,
+      isPitchLinked: state.isPitchLinked ?? true,
+      keepSpeedAcrossTracks: state.keepSpeedAcrossTracks ?? true,
+      isReverbEnabled: state.isReverbEnabled ?? false,
+      reverbLevel: state.reverbLevel ?? 0.35,
+    })),
+  );
   const playbackRate = player.playbackRate ?? 1;
   const pitchSemitones = player.pitchSemitones ?? 0;
   const isPitchLinked = player.isPitchLinked ?? true;

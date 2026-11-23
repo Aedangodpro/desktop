@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import {
   LuRadio,
   LuStepForward,
@@ -337,7 +337,10 @@ export function useSongMenuItems(ctx: SongMenuContext): DropdownMenuItem[] {
     t,
   ]);
 
-  const items = buildMenu();
+  // The menu was rebuilt on every render, and it is rendered once per queue
+  // row: with the drawer open that was a fresh array of items and icons several
+  // times a second for every visible track.
+  const items = useMemo(() => buildMenu(), [buildMenu]);
   if (!isLocalTrackId(id)) return items;
   const deviceItems = items.filter((item) => !CLOUD_ONLY_ITEMS.has(item.id));
   if (!onRemoveFromDevice) return deviceItems;

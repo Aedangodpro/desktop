@@ -49,6 +49,13 @@ import { noteYoutubeTrouble } from "@/features/connectivity/engine/offlineContro
 
 const MAX_CONSECUTIVE_AUTO_SKIPS = 3;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * The next track is resolved and downloaded only after the current one has
+ * been playing for a moment. Doing it while the current track was still
+ * resolving put two stream resolutions in flight at once, which is what made
+ * starts slow and provider refusals intermittent.
+ */
+const NEXT_TRACK_PRELOAD_DELAY_MS = 2_500;
 
 export { usePlayerStore, type PlayerStatus, type RepeatMode, type PlayerState };
 
@@ -335,6 +342,7 @@ class PlayerEngine {
   private consecutiveAutoSkips = 0;
   private consecutiveOfflineSkips = 0;
   private lastPreloadKey: string | null = null;
+  private preloadTimer: ReturnType<typeof setTimeout> | null = null;
   private inFlightLyricsPrefetches = new Map<string, Promise<void>>();
 
   constructor() {
@@ -379,7 +387,7 @@ class PlayerEngine {
             this.telemetry.flushCurrentTrack();
           }
           void this.fetchLyricsForTrack(state.currentTrack);
-          this.preloadNextTrack(state);
+          this.schedulePreloadNextTrack();
         }
 
         if (state.status === "playing") {
@@ -393,6 +401,7 @@ class PlayerEngine {
             this.telemetry.onPlaying();
             this.consecutiveAutoSkips = 0;
             this.consecutiveOfflineSkips = 0;
+            this.schedulePreloadNextTrack();
           } else if (state.status === "paused" || state.status === "idle") {
             this.telemetry.onPausedOrStopped();
           }
@@ -410,7 +419,7 @@ class PlayerEngine {
         if (restoredTrack) {
           prevTrackId = restoredTrack.id;
           void this.fetchLyricsForTrack(restoredTrack);
-          this.preloadNextTrack(state);
+          this.schedulePreloadNextTrack();
         }
       };
 
@@ -1033,6 +1042,7 @@ class PlayerEngine {
   }
 
   public async stopAndClear(): Promise<void> {
+    this.cancelScheduledPreload();
     const reported = this.telemetry.flushCurrentTrack();
     if (this.radioAppendTimeout) {
       clearTimeout(this.radioAppendTimeout);
@@ -1401,6 +1411,30 @@ class PlayerEngine {
     _state: PlayerState,
     _trackChanged: boolean = false,
   ): Promise<void> {}
+
+  private cancelScheduledPreload(): void {
+    if (this.preloadTimer === null) return;
+    clearTimeout(this.preloadTimer);
+    this.preloadTimer = null;
+  }
+
+  /**
+   * Waits for the selected track to become audible before warming the next
+   * one, so the two never race for the same provider or the same connection.
+   */
+  private schedulePreloadNextTrack(): void {
+    this.cancelScheduledPreload();
+    const trackId = usePlayerStore.getState().currentTrack?.id ?? null;
+    if (!trackId) return;
+    this.preloadTimer = setTimeout(() => {
+      this.preloadTimer = null;
+      const state = usePlayerStore.getState();
+      if (!state.currentTrack || state.currentTrack.id !== trackId) return;
+      // a paused or still-loading track does not need the next one fetched yet
+      if (state.status !== "playing") return;
+      this.preloadNextTrack(state);
+    }, NEXT_TRACK_PRELOAD_DELAY_MS);
+  }
 
   private preloadNextTrack(state: PlayerState): void {
     const queue = state.queue;

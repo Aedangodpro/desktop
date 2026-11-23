@@ -2,7 +2,7 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { VolumeCross, VolumeLoud, VolumeSmall } from "@solar-icons/react";
 import { useTranslation } from "@/languages";
 import { cn } from "@/shared/lib";
-import { usePlayerState } from "../hooks/usePlayerState";
+import { usePlayerStore } from "../store/playerStore";
 import { playerEngine } from "../engine/playerEngine";
 import { toVolumeGain, toVolumeLevel } from "../engine/volume";
 
@@ -24,11 +24,12 @@ function VolumeIcon({ percent }: { percent: number }) {
 
 export function VolumeColumn({ onDraggingChange }: VolumeColumnProps) {
   const { t } = useTranslation();
-  const player = usePlayerState();
+  // volume only: the playhead used to re-render this slider too
+  const volume = usePlayerStore((state) => state.volume);
   const trackRef = useRef<HTMLDivElement>(null);
   const restoreLevelRef = useRef(DEFAULT_RESTORE_LEVEL);
   const [dragLevel, setDragLevel] = useState<number | null>(null);
-  const level = dragLevel ?? toVolumeLevel(player.volume);
+  const level = dragLevel ?? toVolumeLevel(volume);
   const percent = Math.round(level * 100);
 
   const apply = (next: number) => {

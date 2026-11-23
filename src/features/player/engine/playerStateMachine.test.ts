@@ -520,27 +520,40 @@ describe("Player auto-skip on playback error", () => {
   });
 
   describe("Queue Preload Behavior", () => {
-    it("preloads strictly only 1 next track in queue without spamming upcoming tracks", async () => {
+    it("warms only the next track, and only after the current one is playing", async () => {
       if (!playerRuntime) return;
-      const preloadSpy = vi.spyOn(playerRuntime, "preloadTrack");
-      const tracks = Array.from({ length: 10 }, (_, i) =>
-        mockTrack(`queue-${i + 1}`, `Song ${i + 1}`),
-      );
+      vi.useFakeTimers();
+      try {
+        const preloadSpy = vi.spyOn(playerRuntime, "preloadTrack");
+        const tracks = Array.from({ length: 10 }, (_, i) =>
+          mockTrack(`queue-${i + 1}`, `Song ${i + 1}`),
+        );
 
-      await playerEngine.playTrack(tracks[0], tracks);
-      expect(usePlayerStore.getState().currentIndex).toBe(0);
+        await playerEngine.playTrack(tracks[0], tracks);
+        expect(usePlayerStore.getState().currentIndex).toBe(0);
 
-      expect(preloadSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "queue-2" }),
-      );
-      expect(preloadSpy).not.toHaveBeenCalledWith(
-        expect.objectContaining({ id: "queue-3" }),
-      );
-      expect(preloadSpy).not.toHaveBeenCalledWith(
-        expect.objectContaining({ id: "queue-4" }),
-      );
+        // resolving the next stream while the current one is still resolving is
+        // what put two provider requests in flight at once
+        expect(preloadSpy).not.toHaveBeenCalled();
 
-      preloadSpy.mockRestore();
+        usePlayerStore.getState().setStatus("playing");
+        vi.advanceTimersByTime(2_600);
+
+        expect(preloadSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ id: "queue-2" }),
+        );
+        expect(preloadSpy).not.toHaveBeenCalledWith(
+          expect.objectContaining({ id: "queue-3" }),
+        );
+        expect(preloadSpy).not.toHaveBeenCalledWith(
+          expect.objectContaining({ id: "queue-4" }),
+        );
+        expect(preloadSpy).toHaveBeenCalledTimes(1);
+
+        preloadSpy.mockRestore();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

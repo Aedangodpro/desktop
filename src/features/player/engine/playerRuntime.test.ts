@@ -169,6 +169,77 @@ describe("PlayerRuntime — buffering hiccups don't flash the loading state", ()
   });
 });
 
+describe("PlayerRuntime — a stall always resolves", () => {
+  const runtime = playerRuntime as unknown as {
+    audio: HTMLAudioElement;
+    currentTrackId: string | null;
+    attachedTrackId: string | null;
+    recoveryAttempts: number;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({
+      status: "playing",
+      currentTrack: track,
+      positionMs: 0,
+      error: null,
+    });
+    runtime.currentTrackId = track.id;
+    runtime.attachedTrackId = track.id;
+    runtime.recoveryAttempts = 0;
+    Object.defineProperty(runtime.audio, "paused", {
+      value: false,
+      configurable: true,
+    });
+    Object.defineProperty(runtime.audio, "readyState", {
+      value: 2,
+      configurable: true,
+    });
+    Object.defineProperty(runtime.audio, "currentTime", {
+      value: 42,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    for (const key of ["paused", "readyState", "currentTime"] as const)
+      Reflect.deleteProperty(runtime.audio, key);
+  });
+
+  it("reloads the stalled track once instead of spinning forever", () => {
+    const loadSpy = vi
+      .spyOn(playerRuntime!, "loadAndPlay")
+      .mockResolvedValue();
+
+    runtime.audio.dispatchEvent(new Event("waiting"));
+    vi.advanceTimersByTime(11_000);
+    expect(loadSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(2_000);
+    expect(loadSpy).toHaveBeenCalledWith(track, 42_000, true);
+  });
+
+  it("reports the track when the single recovery has already been used", () => {
+    runtime.recoveryAttempts = 1;
+    const onError = vi.fn();
+    const previous = playerRuntime!.onError;
+    playerRuntime!.onError = onError;
+
+    runtime.audio.dispatchEvent(new Event("waiting"));
+    vi.advanceTimersByTime(12_500);
+
+    expect(onError).toHaveBeenCalledWith({
+      trackId: track.id,
+      message: "Playback stalled",
+    });
+    expect(usePlayerStore.getState().status).toBe("error");
+    playerRuntime!.onError = previous;
+  });
+});
+
 describe("PlayerRuntime audio caching", () => {
   beforeEach(() => {
     if (!globalThis.URL.createObjectURL) {
@@ -360,6 +431,34 @@ describe("PlayerRuntime audio caching", () => {
       Reflect.deleteProperty(audio, "readyState");
     }
   }, 10_000);
+
+  it("plays when the cache read never settles instead of waiting on IndexedDB", async () => {
+    mocks.resolvePlaybackStream.mockResolvedValue(urlStream);
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
+      .audio;
+    Object.defineProperty(audio, "readyState", { value: 4, configurable: true });
+    const getAudioSpy = vi
+      .spyOn(linerDb, "getAudio")
+      .mockImplementation(() => new Promise(() => {}));
+    vi.useFakeTimers();
+    try {
+      const started = playerRuntime!.loadAndPlay({
+        ...track,
+        id: "blocked-cache",
+        title: "Blocked cache",
+      });
+      await vi.advanceTimersByTimeAsync(2_500);
+      await started;
+
+      expect(mocks.resolvePlaybackStream).toHaveBeenCalledTimes(1);
+      expect(usePlayerStore.getState().status).toBe("playing");
+    } finally {
+      vi.useRealTimers();
+      getAudioSpy.mockRestore();
+      Reflect.deleteProperty(audio, "readyState");
+    }
+  });
 
   it("fetches, plays, and saves to linerDb on cache miss", async () => {
     const playSpy = vi

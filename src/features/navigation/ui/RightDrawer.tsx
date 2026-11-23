@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useReducedMotion } from "framer-motion";
 import { Back2Line } from "@mingcute/react";
 import {
-  usePlayerState,
   usePlayerStore,
   playerEngine,
   isRadioContext,
@@ -318,7 +318,20 @@ export interface RightDrawerProps {
 }
 
 function RightDrawer({ onClose }: RightDrawerProps) {
-  const player = usePlayerState();
+  // The drawer used to subscribe to the whole player store, so every playback
+  // position tick (about four a second) rebuilt the entire queue list. Only
+  // these fields matter here, and none of them change while a track plays.
+  const player = usePlayerStore(
+    useShallow((state) => ({
+      queue: state.queue,
+      currentIndex: state.currentIndex,
+      currentTrackId: state.currentTrack?.id ?? null,
+      playbackContext: state.playbackContext,
+      playbackContextCover: state.playbackContextCover,
+      shuffle: state.shuffle,
+      repeat: state.repeat,
+    })),
+  );
   const { t } = useTranslation();
   const queueScrollRef = useRef<HTMLDivElement>(null);
   const [queueLimit, setQueueLimit] = useState(() =>
@@ -364,17 +377,15 @@ function RightDrawer({ onClose }: RightDrawerProps) {
     }
   }, []);
 
-  const prevQueueTrackIdRef = useRef<string | null>(
-    player.currentTrack?.id ?? null,
-  );
+  const prevQueueTrackIdRef = useRef<string | null>(player.currentTrackId);
 
   useEffect(() => {
-    const currentId = player.currentTrack?.id ?? null;
+    const currentId = player.currentTrackId;
     if (currentId !== null && currentId !== prevQueueTrackIdRef.current) {
       scrollQueueToCurrent();
     }
     prevQueueTrackIdRef.current = currentId;
-  }, [player.currentTrack?.id, scrollQueueToCurrent]);
+  }, [player.currentTrackId, scrollQueueToCurrent]);
 
   return (
     <div className="relative flex flex-col h-full w-full overflow-hidden rounded-[14px] select-none bg-bg-glass backdrop-blur-[48px]">

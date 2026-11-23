@@ -29,6 +29,37 @@ const WAITING_GRACE_MS = 300; // a buffering hiccup shorter than this never show
 const START_TIMEOUT_MS = 15_000;
 /** metadata is all a resume needs before playing; it arrives long before canplay */
 const METADATA_TIMEOUT_MS = 1500;
+/**
+ * A source that stalls and never recovers used to leave the spinner up for
+ * good: `waiting` fires, `play()` has already resolved, and nothing else is
+ * scheduled. One reload at the stall position is tried, then the track is
+ * reported so the engine can move on instead of hanging.
+ */
+const STALL_RECOVERY_MS = 12_000;
+/**
+ * IndexedDB can leave a read unsettled (an open blocked by another tab holding
+ * an older database version, or a transaction stuck behind a large write). The
+ * cache is an optimization, so a read that misses this deadline must not hold
+ * up the stream: fall through to resolving one.
+ */
+const CACHE_LOOKUP_TIMEOUT_MS = 2_000;
+
+function settleWithin<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: T | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    promise.then(finish, () => finish(null));
+  });
+}
 
 /**
  * A source that never starts playing (as opposed to one that fails to resolve):
@@ -89,6 +120,8 @@ export class PlayerRuntime {
   // loaded / cached track fires waiting -> playing within milliseconds, and flipping
   // the status for that re-animated the play / pause button on every seek
   private waitingTimer: ReturnType<typeof setTimeout> | null = null;
+  // deadline for a source that stays stuck after `waiting`; see recoverFromStall
+  private stallWatchdog: ReturnType<typeof setTimeout> | null = null;
   public onEnded?: () => void;
   public onError?: (info: { trackId: string; message: string }) => void;
 
@@ -336,6 +369,7 @@ export class PlayerRuntime {
       if (this.isResetting || audioEl !== this.audio) return;
       log("yellow", "audio", "buffering (waiting)");
       this.stallStartTime = performance.now();
+      this.watchForStall();
       if (this.waitingTimer) clearTimeout(this.waitingTimer);
       this.waitingTimer = setTimeout(() => {
         this.waitingTimer = null;
@@ -351,7 +385,9 @@ export class PlayerRuntime {
     // resumed (or never really stalled): drop a pending "loading"
     for (const type of ["playing", "seeked", "canplay", "pause", "emptied"]) {
       audioEl.addEventListener(type, () => {
-        if (audioEl !== this.audio || !this.waitingTimer) return;
+        if (audioEl !== this.audio) return;
+        this.clearStallWatchdog();
+        if (!this.waitingTimer) return;
         if (type === "seeked" && audioEl.readyState < 3) return; // seeked but still no data
         clearTimeout(this.waitingTimer);
         this.waitingTimer = null;
@@ -360,6 +396,7 @@ export class PlayerRuntime {
 
     audioEl.addEventListener("ended", () => {
       if (this.isResetting || audioEl !== this.audio) return;
+      this.clearStallWatchdog();
       if (!this.currentTrackId) return;
       if (this.attachedTrackId !== this.currentTrackId) return;
 
@@ -376,6 +413,7 @@ export class PlayerRuntime {
 
     audioEl.addEventListener("playing", () => {
       if (this.isResetting || audioEl !== this.audio) return;
+      this.clearStallWatchdog();
       log("green", "audio", "playing");
       if (this.recoveryHoldUntilMs === null) this.recoveryAttempts = 0;
       this.applyPlaybackRateAndPitch();
@@ -402,6 +440,7 @@ export class PlayerRuntime {
 
     audioEl.addEventListener("pause", () => {
       if (this.isResetting || audioEl !== this.audio) return;
+      this.clearStallWatchdog();
       log("cyan", "audio", "paused");
       const st = usePlayerStore.getState().status;
       if (st === "playing") {
@@ -420,6 +459,7 @@ export class PlayerRuntime {
       // the previous track's source is still attached while the next one loads
       if (this.attachedTrackId !== this.currentTrackId) return;
 
+      this.clearStallWatchdog();
       const message = audioEl.error?.message || "Audio playback error";
       const code = audioEl.error?.code;
       console.error(
@@ -487,6 +527,55 @@ export class PlayerRuntime {
       usePlayerStore.getState().setStatus("error", message);
       this.onError?.({ trackId: this.currentTrackId, message });
     });
+  }
+
+  private clearStallWatchdog(): void {
+    if (this.stallWatchdog === null) return;
+    clearTimeout(this.stallWatchdog);
+    this.stallWatchdog = null;
+  }
+
+  /** Arms the stall deadline for the track attached right now. */
+  private watchForStall(): void {
+    this.clearStallWatchdog();
+    const trackId = this.currentTrackId;
+    if (!trackId) return;
+    this.stallWatchdog = setTimeout(() => {
+      this.stallWatchdog = null;
+      this.recoverFromStall();
+    }, STALL_RECOVERY_MS);
+  }
+
+  private recoverFromStall(): void {
+    const trackId = this.currentTrackId;
+    if (!trackId || this.attachedTrackId !== trackId) return;
+    const state = usePlayerStore.getState();
+    if (state.status !== "loading" && state.status !== "playing") return;
+    // Data arrived while the deadline was pending: the stall resolved itself.
+    if (this.audio.readyState >= 3 && !this.audio.paused) return;
+    const track = state.currentTrack;
+    if (!track || track.id !== trackId) return;
+
+    const posMs =
+      Number.isFinite(this.audio.currentTime) && this.audio.currentTime > 0
+        ? Math.round(this.audio.currentTime * 1000)
+        : state.positionMs;
+
+    if (this.recoveryAttempts < 1) {
+      this.recoveryAttempts += 1;
+      this.recoveryHoldUntilMs = posMs + RECOVERY_HOLD_MS;
+      log(
+        "yellow",
+        "playback",
+        `"${track.title}" stalled for ${STALL_RECOVERY_MS} ms — reloading once at ${posMs}ms`,
+      );
+      void this.loadAndPlay(track, posMs, true);
+      return;
+    }
+
+    log("red", "audio", `"${track.title}" stalled with no recovery left`);
+    usePlayerStore.getState().setStatus("error", "Playback stalled");
+    this.onError?.({ trackId, message: "Playback stalled" });
   }
 
   public getCurrentTrackId(): string | null {
@@ -648,6 +737,7 @@ export class PlayerRuntime {
   private safeResetAudioElement() {
     this.isResetting = true;
     this.currentSessionExpiresAt = null;
+    this.clearStallWatchdog();
     try {
       this.cancelFade();
       this.audio.pause();
@@ -671,6 +761,7 @@ export class PlayerRuntime {
   private pauseForTransition() {
     this.isResetting = true;
     this.currentSessionExpiresAt = null;
+    this.clearStallWatchdog();
     try {
       this.cancelFade();
       this.audio.pause();
@@ -691,6 +782,7 @@ export class PlayerRuntime {
 
   public cancelPendingLoad(): void {
     this.loadEpoch += 1;
+    this.clearStallWatchdog();
     this.loadAbortController?.abort();
     this.loadAbortController = null;
     this.backgroundCacheAbortController?.abort();
@@ -711,7 +803,10 @@ export class PlayerRuntime {
     if (this.currentTrackId === track.id) return;
     if (this.preloadingTrackId === track.id) return;
 
-    const cached = await linerDb.getAudio(track.id);
+    const cached = await settleWithin(
+      linerDb.getAudio(track.id),
+      CACHE_LOOKUP_TIMEOUT_MS,
+    );
     if (cached) return;
     // the user may have selected this track while the cache lookup was in
     // flight; its foreground load owns the bandwidth now
@@ -889,7 +984,10 @@ export class PlayerRuntime {
       const cachedAudio =
         bypassCache || isSavedTrack(track.id)
           ? null
-          : await linerDb.getAudio(track.id);
+          : await settleWithin(
+              linerDb.getAudio(track.id),
+              CACHE_LOOKUP_TIMEOUT_MS,
+            );
       if (epoch !== this.loadEpoch || controller.signal.aborted) {
         return;
       }
@@ -1303,6 +1401,11 @@ export class PlayerRuntime {
     signal: AbortSignal,
   ) {
     if (isLocalTrackId(track.id) || isSavedTrack(track.id)) return;
+    // In the browser this track is already streaming through the same-origin
+    // relay, so caching it means pulling the same bytes a second time while it
+    // plays and competing with the audio element for the connection. The next
+    // track is warmed by preloadTrack instead, which is the copy that pays off.
+    if (IS_WEB_TARGET) return;
     if (track.durationMs && track.durationMs > 20 * 60 * 1000) return;
     const generation = audioCache.currentGeneration();
     void (async () => {

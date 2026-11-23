@@ -7,7 +7,7 @@ import {
   ICON_VOLUME_LOW,
   ICON_VOLUME_HIGH,
 } from "./morphPlayerIcons";
-import { usePlayerState } from "../hooks/usePlayerState";
+import { usePlayerStore } from "../store/playerStore";
 import { playerEngine } from "../engine/playerEngine";
 import { toVolumeGain, toVolumeLevel } from "../engine/volume";
 
@@ -47,8 +47,8 @@ export const VolumePicker = memo(function VolumePicker({
   onDraggingChange,
 }: VolumePickerProps) {
   const isVertical = orientation === "vertical";
-  const player = usePlayerState();
-  const volumeLevel = toVolumeLevel(player.volume);
+  const volume = usePlayerStore((state) => state.volume);
+  const volumeLevel = toVolumeLevel(volume);
 
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);

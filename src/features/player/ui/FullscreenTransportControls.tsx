@@ -6,7 +6,10 @@ import {
   Shuffle,
 } from "@solar-icons/react";
 import { PlayerMorphIcon, ICON_PLAY, ICON_PAUSE } from "./morphPlayerIcons";
-import { usePlayerState } from "../hooks/usePlayerState";
+import {
+  usePlayerStore,
+} from "../store/playerStore";
+import { useShallow } from "zustand/react/shallow";
 import { playerEngine } from "../engine/playerEngine";
 import { isRadioContext, nextRepeatMode } from "../engine/radioMode";
 import { useTranslation } from "@/languages";
@@ -44,7 +47,15 @@ function PlayPauseIcon({ status }: PlayPauseIconProps) {
 }
 
 export function FullscreenTransportControls() {
-  const player = usePlayerState();
+  // transport state only — the playhead re-rendered these buttons every tick
+  const player = usePlayerStore(
+    useShallow((state) => ({
+      shuffle: state.shuffle,
+      repeat: state.repeat,
+      status: state.status,
+      playbackContext: state.playbackContext,
+    })),
+  );
   const { t } = useTranslation();
 
   return (
