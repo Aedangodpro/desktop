@@ -102,6 +102,42 @@ describe("streamLyricsEvents", () => {
     });
   });
 
+  it("waits for a slow top-priority provider instead of settling on a decisive public answer", async () => {
+    const liner = {
+      ...candidate("Liner", "line_level", 70),
+      topPriority: true,
+    };
+    const providers: LyricsProvider[] = [
+      {
+        id: "Liner",
+        priority: 0,
+        topPriority: true,
+        maxSyncLevel: "syllable_level",
+        fetchLyrics: () => settleAfter(liner, 200),
+      },
+      {
+        id: "LRCMUX",
+        priority: 10,
+        maxSyncLevel: "word_level",
+        fetchLyrics: async () => candidate("LRCMUX", "word_level", 95),
+      },
+    ];
+
+    const events = await collect(providers, { graceMs: 30 });
+
+    // the public word-level answer arrives first and would normally start the
+    // grace window; the race must keep waiting for Liner anyway
+    expect(
+      events.some(
+        (event) => event.type === "provider" && event.provider === "LRCMUX",
+      ),
+    ).toBe(true);
+    expect(events.at(-1)).toMatchObject({
+      type: "done",
+      best: { provider: "Liner", syncLevel: "line_level" },
+    });
+  });
+
   it("reports the fastest answer first instead of waiting for the slowest", async () => {
     const slow = deferred<LyricsCandidate | null>();
     const fast = deferred<LyricsCandidate | null>();

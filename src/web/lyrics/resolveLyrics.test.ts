@@ -185,7 +185,11 @@ describe("isWebLyricsProvider", () => {
     expect(isWebLyricsProvider("LRCMUX")).toBe(true);
     expect(isWebLyricsProvider("lrclib")).toBe(true);
     expect(isWebLyricsProvider("Lyrics.ovh")).toBe(true);
-    expect(isWebLyricsProvider("Cadence")).toBe(false);
+    // the Liner API's own providers are reachable in the browser build too
+    expect(isWebLyricsProvider("Liner")).toBe(true);
+    expect(isWebLyricsProvider("Cadence")).toBe(true);
+    expect(isWebLyricsProvider("Liner Atlas")).toBe(true);
+    expect(isWebLyricsProvider("desktop-only-source")).toBe(false);
     expect(isWebLyricsProvider(null)).toBe(false);
   });
 });

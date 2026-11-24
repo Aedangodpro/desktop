@@ -1,4 +1,4 @@
-import { lyricsProviders, streamLyricsEvents } from "@/web/lyrics";
+import { streamLyricsEvents, webLyricsProviders } from "@/web/lyrics";
 import { parseSseStream } from "@/shared/media/sse";
 import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import {
@@ -1189,8 +1189,10 @@ export const api = {
     signal?: AbortSignal,
     hint?: { title: string; artist: string; durationMs?: number },
   ): AsyncGenerator<LyricsStreamEvent> {
-    // no API access in the browser build: the public sources in
-    // `src/web/lyrics` are raced directly
+    // The browser build cannot call the API cross-origin, but it does reach it
+    // through the same-origin `/__liner` proxy. `streamWebLyrics` therefore
+    // asks the Liner API first (when signed in) and keeps the public sources in
+    // the race as the fallback.
     if (IS_WEB_TARGET) {
       yield* streamWebLyrics(hint, signal);
       return;
@@ -1324,9 +1326,10 @@ export const api = {
   },
 };
 
-// The browser build has no API access, so lyrics come straight from the
-// public sources in `src/web/lyrics`. They are raced concurrently and emitted
-// with the same `provider` + `done` events the API streams.
+// The browser build's lyrics come from the Liner API when the user is signed
+// in (its answers are marked top-priority, so they win over a richer-timed
+// public source), with the public providers raced as the fallback. Both paths
+// emit the same `provider` + `done` events the API streams.
 async function* streamWebLyrics(
   hint: { title: string; artist: string; durationMs?: number } | undefined,
   signal?: AbortSignal,
@@ -1335,5 +1338,6 @@ async function* streamWebLyrics(
     yield { type: "done", cached: false, status: "not_found" };
     return;
   }
-  yield* streamLyricsEvents(hint, lyricsProviders, signal);
+  const signedIn = Boolean(getAuthSession()?.accessToken);
+  yield* streamLyricsEvents(hint, webLyricsProviders(signedIn), signal);
 }

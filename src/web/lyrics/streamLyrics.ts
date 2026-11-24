@@ -252,8 +252,17 @@ async function* consumeGroup(
           });
           // every outstanding provider is a lower tier: nothing left can win
           if (!couldBeat) break;
-          // a per-word answer waits a moment for a possible syllable answer
-          if (isDecisiveCandidate(best)) startGrace();
+          // The Liner API is the intended primary source. While it is still in
+          // flight, do not let a fast public answer settle the race (a decisive
+          // word-level answer would otherwise start the 800 ms grace and abort
+          // Liner before the proxy answers).
+          const priorityPending = [...remaining].some(
+            (id) => providersById.get(id)?.topPriority,
+          );
+          if (priorityPending && !best.topPriority) continue;
+          // a per-word answer waits a moment for a possible syllable answer;
+          // a priority answer only waits for the alternates that already landed
+          if (isDecisiveCandidate(best) || best.topPriority) startGrace();
         }
       } else if (outcome.status === "error") {
         yield {

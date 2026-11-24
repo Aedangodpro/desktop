@@ -41,6 +41,12 @@ export interface LyricsProvider {
   readonly maxSyncLevel?: LyricsSyncLevel;
   /** Per-request budget; defaults to 9 s. */
   readonly timeoutMs?: number;
+  /**
+   * The Liner API's own answer. While this provider is still in flight the race
+   * does not settle on a decisive public answer, and once it lands its
+   * candidate (`topPriority`) stays the winner over richer-timed public ones.
+   */
+  readonly topPriority?: boolean;
   fetchLyrics: (
     hint: LyricsHint,
     signal?: AbortSignal,

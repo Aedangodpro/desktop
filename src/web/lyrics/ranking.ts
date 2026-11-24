@@ -64,6 +64,10 @@ export function compareCandidates(
   a: LyricsCandidate,
   b: LyricsCandidate,
 ): number {
+  // The Liner API's own ranking already matched the recording and picked a
+  // provider; its answer stays the default even when a public source has
+  // richer timing. Users can still switch providers manually.
+  if (a.topPriority !== b.topPriority) return a.topPriority ? -1 : 1;
   const depth = (SYNC_DEPTH[b.syncLevel] ?? 0) - (SYNC_DEPTH[a.syncLevel] ?? 0);
   if (depth !== 0) return depth;
   if (b.quality.total !== a.quality.total) {

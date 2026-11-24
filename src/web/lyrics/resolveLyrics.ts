@@ -1,4 +1,6 @@
 import type { LyricsCandidate } from "@/shared/contracts/lyrics";
+import { getAuthSession } from "@/shared/api/auth-session";
+import { linerLyricsProvider } from "./linerLyrics";
 import { lrcmuxProvider } from "./lrcmuxLyrics";
 import { lrclibProvider } from "./lrclibLyrics";
 import { lyricsOvhProvider } from "./lyricsOvh";
@@ -7,9 +9,9 @@ import { streamLyricsEvents } from "./streamLyrics";
 import type { LyricsHint, LyricsProvider } from "./types";
 
 /**
- * Every source the browser build can reach. They are asked as a race; this
- * array only fixes the order requests start in (best first) and the provider
- * switcher's display order.
+ * The public sources the browser build can reach without an account. They are
+ * asked as a race; this array only fixes the order requests start in and the
+ * provider switcher's display order.
  */
 export const lyricsProviders: LyricsProvider[] = [
   lrcmuxProvider,
@@ -17,12 +19,35 @@ export const lyricsProviders: LyricsProvider[] = [
   lyricsOvhProvider,
 ];
 
+/**
+ * Providers for the current session. The Liner API is first when the user is
+ * signed in, and its answers are marked `topPriority`; the public sources stay
+ * in the race as the fallback for signed-out users and for tracks the API does
+ * not have.
+ */
+export function webLyricsProviders(signedIn: boolean): LyricsProvider[] {
+  return signedIn ? [linerLyricsProvider, ...lyricsProviders] : lyricsProviders;
+}
+
+/** Provider names that can only come from the Liner API's own engine. */
+const LINER_API_PROVIDERS = new Set([
+  "liner",
+  "cadence",
+  "polaris",
+  "polaris mono",
+  "liner atlas",
+  "genius",
+]);
+
 export function isWebLyricsProvider(
   provider: string | null | undefined,
 ): boolean {
   if (!provider) return false;
-  const name = provider.toLowerCase().trim();
-  return lyricsProviders.some((item) => item.id.toLowerCase() === name);
+  const name = provider.toLowerCase().trim().replace(/[-_]/g, " ");
+  return (
+    lyricsProviders.some((item) => item.id.toLowerCase() === name) ||
+    LINER_API_PROVIDERS.has(name)
+  );
 }
 
 export interface LyricsResolution {
@@ -48,9 +73,12 @@ export async function resolveLyrics(
   const attempted: string[] = [];
   let best: LyricsCandidate | null = null;
 
-  for await (const event of streamLyricsEvents(hint, lyricsProviders, signal, {
-    onAttempt: (provider) => attempted.push(provider),
-  })) {
+  for await (const event of streamLyricsEvents(
+    hint,
+    webLyricsProviders(Boolean(getAuthSession()?.accessToken)),
+    signal,
+    { onAttempt: (provider) => attempted.push(provider) },
+  )) {
     if (event.type !== "provider" || event.status !== "found") continue;
     if (!best || preferCandidate(event.candidate, best)) {
       best = event.candidate;

@@ -100,6 +100,17 @@ describe("compareCandidates", () => {
     ]);
   });
 
+  it("keeps a top-priority provider ahead of richer timing", () => {
+    const liner = {
+      ...candidate("Liner", "line_level", 70),
+      topPriority: true,
+    };
+    const lrcmux = candidate("LRCMUX", "word_level", 95);
+
+    expect(preferCandidate(liner, lrcmux)).toBe(true);
+    expect(preferCandidate(lrcmux, liner)).toBe(false);
+  });
+
   it("uses quality within the same sync level", () => {
     const good = candidate("Atlas", "syllable_level", 95);
     const weak = candidate("Polaris", "syllable_level", 70);

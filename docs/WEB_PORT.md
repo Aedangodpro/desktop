@@ -255,6 +255,13 @@ in `src/web/lyrics`:
   soon as it lands; the race settles by timing tier, waiting a short grace
   window for a possible richer answer before aborting the requests still in
   flight.
+- `linerLyrics.ts` asks the Liner API through `/__liner`
+  (`GET /v1/me/lyrics/search`) when a session exists. Its answer is marked
+  `topPriority`: the engine and the cache prefer it over a richer-timed public
+  answer, and the race will not settle on a decisive public answer while Liner
+  is still in flight. The public providers stay in the same race, so a signed
+  out user, an API miss or a timeout still gets lyrics, and their results remain
+  available in the provider switcher.
 - `ranking.ts` scores each candidate (recording match 35%, text 25%, timing
   25%, source trust 15%) and ranks by timing depth first, so syllable > word >
   line > plain. `isDecisiveCandidate` is the early-exit rule used by the race.
@@ -272,8 +279,9 @@ in `src/web/lyrics`:
 - `lyricsOvh.ts` — Lyrics.ovh, plain text only. It is registered with
   `tier: "plain"`, so it is asked only when no synced source found anything.
 
-The best racing candidate wins: syllable-level beats word-level, which beats
-line-level, which beats plain text from either of the two synced sources. Plain
+The best racing candidate wins: a Liner API answer first, then syllable-level
+over word-level, which beats line-level, which beats plain text from either of
+the two synced sources. Plain
 results that arrive during the race are kept as the fallback instead of ending
 it. If nobody has lyrics, Lyrics.ovh supplies unsynced text; if that misses too
 the UI reports none. All three APIs answer with
@@ -405,5 +413,4 @@ relays work, but sign-in, the cloud library and anything else under
 `/__liner` do not work on Workers.
 
 This is upstream bot protection, not a bug here: the same signed request
-succeeds from a desktop machine, and plain `curl` gets an instant Cloudflare
-403. The desktop build talks to the API directly and is unaffected.
+succeeds from a desktop machine, and plain `curl` gets an instant Cloudflare 403. The desktop build talks to the API directly and is unaffected.

@@ -2,6 +2,7 @@ export {
   resolveLyrics,
   isWebLyricsProvider,
   lyricsProviders,
+  webLyricsProviders,
   type LyricsResolution,
 } from "./resolveLyrics";
 export {
@@ -28,4 +29,5 @@ export {
   cleanLyricsTitle,
 } from "./lrclibLyrics";
 export { fetchLyricsOvh, lyricsOvhProvider } from "./lyricsOvh";
+export { fetchLinerLyrics, linerLyricsProvider } from "./linerLyrics";
 export type { LyricsHint, LyricsProvider } from "./types";
