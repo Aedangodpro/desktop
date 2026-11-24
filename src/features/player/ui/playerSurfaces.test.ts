@@ -14,10 +14,24 @@ const read = (relative: string) =>
  */
 describe("player chrome above the animated background", () => {
   it.each([
-    ["CanvasLyricsView.tsx", "./CanvasLyricsView.tsx"],
     ["FullscreenTrackInfo.tsx", "./FullscreenTrackInfo.tsx"],
     ["Notch.tsx", "../../../shared/ui/Notch.tsx"],
   ])("%s has no live backdrop filter", (_name, path) => {
     expect(read(path)).not.toMatch(/backdrop-blur/);
+  });
+
+  /**
+   * The lyrics edge blur stays, because it is the effect that reads as the
+   * player. Its cost is what a full-height band used to be: ~17 ms per frame
+   * at 18%/26% of the viewport. At 56/72 px, masked so the blur is invisible
+   * past the band, it is in the noise. Pin the heights so it cannot grow back
+   * into the expensive range.
+   */
+  it("keeps the lyrics edge blur at its cheap height", () => {
+    const source = read("./CanvasLyricsView.tsx");
+    expect(source).toContain("backdrop-blur-xs");
+    expect(source).toContain("h-[56px]");
+    expect(source).toContain("h-[72px]");
+    expect(source).not.toMatch(/h-\[(1\d|[2-9]\d)%\]/);
   });
 });

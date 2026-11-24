@@ -75,6 +75,8 @@ export const useAmbientEnabled = () => useEffectiveVisualMode() !== "lite";
 
 export const useLyricsEdgeFade = () => useEffectiveVisualMode() !== "lite";
 
+export const useLyricsEdgeBlur = () => useEffectiveVisualMode() === "full";
+
 export const useKawarpEnabled = () => useEffectiveVisualMode() !== "lite";
 
 export const useGlassBlur = () => useEffectiveVisualMode() === "full";

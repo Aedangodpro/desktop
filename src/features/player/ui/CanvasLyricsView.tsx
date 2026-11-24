@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Lyric } from "@braccato/parsers";
-import { useLyricsEdgeFade } from "../store/visualModeStore";
+import { cn } from "@/shared/lib";
+import { useLyricsEdgeBlur, useLyricsEdgeFade } from "../store/visualModeStore";
 import { useLyricsCanvas } from "../hooks/useLyricsCanvas";
 import { playerEngine } from "../engine/playerEngine";
 
@@ -27,7 +28,12 @@ export function CanvasLyricsView({ lyrics }: CanvasLyricsViewProps) {
   );
   const freeTimerRef = useRef<number | null>(null);
   const edgeFade = useLyricsEdgeFade();
-  const { rendererRef, releasePin } = useLyricsCanvas(refs, lyrics, edgeFade);
+  const edgeBlur = useLyricsEdgeBlur();
+  const { rendererRef, edges, releasePin } = useLyricsCanvas(
+    refs,
+    lyrics,
+    edgeFade,
+  );
 
   const clearFreeTimer = () => {
     if (freeTimerRef.current === null) return;
@@ -90,11 +96,30 @@ export function CanvasLyricsView({ lyrics }: CanvasLyricsViewProps) {
           className="pointer-events-none absolute top-0 left-0 w-full"
         />
       </div>
-      {/* No backdrop-filter here. A blur band above a canvas that repaints at
-          the display rate is re-blurred on every one of those frames, and that
-          compositor pass is the one cost in this view that scales with the
-          monitor rather than with the lyrics. The canvas already fades its own
-          content at the edges (`EdgeFog`), which is what the band was for. */}
+      {/* The soft edge, on top of the canvas's own alpha fade (`EdgeFog`).
+          These bands are deliberately tiny — 56 px and 72 px, masked so the
+          blur is already invisible past that — because a backdrop-filter above
+          a canvas that repaints every frame is re-blurred every frame. A
+          full-height band measured ~17 ms per frame; at this size it is in the
+          noise, so keep the height and let the mask do the work. */}
+      {edgeBlur && (
+        <>
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-0 h-[56px] backdrop-blur-xs transition-opacity duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] [mask-image:linear-gradient(to_bottom,black,transparent)]",
+              edges.atTop ? "opacity-0" : "opacity-100",
+            )}
+          />
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-0 h-[72px] backdrop-blur-xs transition-opacity duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] [mask-image:linear-gradient(to_top,black,transparent)]",
+              edges.atBottom ? "opacity-0" : "opacity-100",
+            )}
+          />
+        </>
+      )}
     </div>
   );
 }

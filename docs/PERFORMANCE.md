@@ -10,7 +10,7 @@ each one costs, what was measured, and what is still unmeasured.
 | Album-colour warp (WebGL)          | `engine/kawarpEngine.ts`                | 30 fps, fixed  | display rate, ≤60 |
 | Ambient background (worker canvas) | `hooks/useAmbientWorker.ts`             | 30 fps         | 30 fps            |
 | Lyrics canvas                      | `lyrics/canvas/lyricsCanvasRenderer.ts` | on demand      | on demand         |
-| Edge blur bands over the lyrics    | `player/ui/CanvasLyricsView.tsx`        | full visuals   | removed           |
+| Edge blur bands over the lyrics    | `player/ui/CanvasLyricsView.tsx`        | full visuals   | 56/72 px, masked  |
 | Notch glass (`backdrop-blur-2px`)  | `shared/ui/Notch.tsx`                   | full visuals   | static fill       |
 | Page cover backdrop (`blur(56px)`) | `navigation/ui/PageCoverBackdrop.tsx`   | static image   | static image      |
 
@@ -81,12 +81,17 @@ surface changes at the display rate. The chrome is small, so the cost is easy to
 miss in a still screenshot and easy to feel while a song plays, and it is the
 one cost that grows with the monitor while the work behind it stays the same.
 
-Full visual mode used to turn on four of them at once — the two edge-blur bands
-over the lyrics, the 2 px notch blur and the `backdrop-blur-xl` on the like
-button. All four are gone in favour of static translucency: the lyrics canvas
-already fades its own content at the edges (`EdgeFog`), and a denser fill reads
-the same at 2–20 px of blur. `playerSurfaces.test.ts` fails if one comes back to
-any of those three files.
+The expensive version of this was the two **full-height** edge bands over the
+lyrics, at 18%/26% of the viewport: ~17 ms per frame. At their present 56 px and
+72 px, with the mask fading the blur out before the band ends, the cost is in
+the noise — so they stay, because that soft edge is the effect people notice.
+The 2 px notch blur and the `backdrop-blur-xl` on the like button are gone in
+favour of static translucency, where nobody can tell the difference and the
+panel sits over the moving background the whole time.
+
+`playerSurfaces.test.ts` keeps the notch and the like button free of
+`backdrop-filter`, and pins the lyrics bands to their small heights so they
+cannot grow back into the measured-expensive range.
 
 A machine can also be fast and still rasterise on the CPU: driver blocklists and
 a switched-off "use hardware acceleration" setting both do it. `isSoftwareGpu()`
