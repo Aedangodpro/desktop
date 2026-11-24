@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { KawarpEngine } from "../engine/kawarpEngine";
+import { useEffectiveVisualMode } from "../store/visualModeStore";
 import { getCoverElement, useCoverElement } from "@/features/covers";
 import { observeElementVisible } from "@/shared/utils/elementVisibility";
 
 export const KAWARP_RESIZE_SETTLE_MS = 300;
 export const KAWARP_RENDER_SCALE = 0.5;
+
+/**
+ * The background is the largest moving surface in the player, so its frame rate
+ * is what decides whether playback feels like 30 or 60 fps. Full visuals run at
+ * the display rate (capped at 60); the cheaper mode keeps 30, where the savings
+ * matter more than the cadence.
+ */
+export function kawarpFpsFor(isFullVisuals: boolean): number {
+  return isFullVisuals ? 60 : 30;
+}
 
 interface KawarpWrapperProps {
   src?: string;
@@ -19,6 +30,9 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
   const visibleRef = useRef(true);
   const [loaded, setLoaded] = useState(false);
   const coverElement = useCoverElement(src);
+  const maxFps = kawarpFpsFor(useEffectiveVisualMode() === "full");
+  const maxFpsRef = useRef(maxFps);
+  maxFpsRef.current = maxFps;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,6 +48,7 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
         saturation: 1.3,
         scale: 1.18,
         dithering: 0.008,
+        maxFps: maxFpsRef.current,
       });
       engineRef.current = engine;
       engine.setVisible(visibleRef.current);
@@ -48,6 +63,10 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
       engineRef.current = null;
     };
   }, [onError]);
+
+  useEffect(() => {
+    engineRef.current?.setMaxFps(maxFps);
+  }, [maxFps]);
 
   useEffect(() => {
     const container = containerRef.current;

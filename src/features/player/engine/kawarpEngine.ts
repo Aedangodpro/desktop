@@ -6,9 +6,34 @@ import {
 
 const BLUR_SIZE = 160;
 const WARP_SCALE = 0.25;
-const MAX_FPS = 30;
-const FRAME_MS = 1000 / MAX_FPS;
-const FRAME_SLACK_MS = 2;
+const DEFAULT_MAX_FPS = 30;
+/**
+ * The background used to render at a fixed 30 fps, which is the one thing in
+ * the player that visibly stepped at 30 while everything around it ran at the
+ * display rate. Full visuals now follow the display up to 60 fps.
+ *
+ * The wait is a fraction of the target interval instead of most of it: on a
+ * 144 Hz display a 16.7 ms interval falls between two and three refresh slots,
+ * so waiting a whole interval lands on 48 fps. Waiting three quarters lets the
+ * nearest slot win without running faster than the target on a 60 Hz display.
+ */
+const FRAME_TOLERANCE_RATIO = 0.75;
+
+function clampMaxFps(fps: number): number {
+  return Number.isFinite(fps)
+    ? Math.min(120, Math.max(20, Math.round(fps)))
+    : DEFAULT_MAX_FPS;
+}
+
+/** Whether the background effect should draw on this animation frame. */
+export function isFrameDue(
+  lastFrameTime: number,
+  timestamp: number,
+  maxFps: number,
+): boolean {
+  const frameMs = 1000 / clampMaxFps(maxFps);
+  return timestamp - lastFrameTime >= frameMs * FRAME_TOLERANCE_RATIO;
+}
 
 const VERTEX_SHADER = `
   attribute vec2 a_position;
@@ -180,6 +205,8 @@ export interface KawarpOptions {
   tintIntensity?: number;
   dithering?: number;
   scale?: number;
+  /** Upper bound on background frames per second. Defaults to 30. */
+  maxFps?: number;
 }
 
 export class KawarpEngine {
@@ -229,6 +256,7 @@ export class KawarpEngine {
   private dithering = 0.012;
   private scale = 1.2;
   private hasImage = false;
+  private maxFps = DEFAULT_MAX_FPS;
 
   private uniforms: any;
 
@@ -262,6 +290,7 @@ export class KawarpEngine {
       this.tintIntensity = options.tintIntensity;
     if (options.dithering !== undefined) this.dithering = options.dithering;
     if (options.scale !== undefined) this.scale = options.scale;
+    if (options.maxFps !== undefined) this.maxFps = clampMaxFps(options.maxFps);
 
     this.blurProgram = this.createProgram(VERTEX_SHADER, KAWASE_BLUR_SHADER);
     this.blendProgram = this.createProgram(VERTEX_SHADER, BLEND_SHADER);
@@ -538,6 +567,14 @@ export class KawarpEngine {
     }
   }
 
+  /** Frames per second the background effect is allowed to draw. */
+  public setMaxFps(fps: number) {
+    const next = clampMaxFps(fps);
+    if (next === this.maxFps) return;
+    this.maxFps = next;
+    this.lastFrameTime = performance.now();
+  }
+
   private renderLoop = (timestamp: number) => {
     if (!this.isPlaying) return;
     if (!this.elementVisible || !isWindowVisible()) {
@@ -545,7 +582,7 @@ export class KawarpEngine {
       return;
     }
     this.animationId = requestAnimationFrame(this.renderLoop);
-    if (timestamp - this.lastFrameTime < FRAME_MS - FRAME_SLACK_MS) return;
+    if (!isFrameDue(this.lastFrameTime, timestamp, this.maxFps)) return;
     const dt = (timestamp - this.lastFrameTime) / 1000;
     this.lastFrameTime = timestamp;
     this.accumulatedTime += dt * this.animationSpeed;

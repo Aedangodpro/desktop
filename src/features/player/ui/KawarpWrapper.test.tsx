@@ -7,6 +7,7 @@ const engine = vi.hoisted(() => ({
   resize: vi.fn(),
   start: vi.fn(),
   setVisible: vi.fn(),
+  setMaxFps: vi.fn(),
   dispose: vi.fn(),
   loadImage: vi.fn(async () => {}),
 }));
