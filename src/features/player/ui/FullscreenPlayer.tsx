@@ -50,15 +50,16 @@ export function FullscreenPlayer({
     }
   }, [currentTrack, onClose]);
 
-  const {
-    braccatoLyrics,
-    lyricsLoading,
-    lyricsError,
-    plainLyrics,
-    instrumental,
-    availableProviders,
-    currentLyricsTrackId,
-  } = useLyricsStore();
+  // One selector per field instead of the whole store: this component renders
+  // the WebGL warp and the lyrics canvas, and used to re-render on every
+  // unrelated lyrics field (the active line index ticks with the song).
+  const braccatoLyrics = useLyricsStore((s) => s.braccatoLyrics);
+  const lyricsLoading = useLyricsStore((s) => s.lyricsLoading);
+  const lyricsError = useLyricsStore((s) => s.lyricsError);
+  const plainLyrics = useLyricsStore((s) => s.plainLyrics);
+  const instrumental = useLyricsStore((s) => s.instrumental);
+  const availableProviders = useLyricsStore((s) => s.availableProviders);
+  const currentLyricsTrackId = useLyricsStore((s) => s.currentLyricsTrackId);
 
   const onError = useCallback((err: Error) => {
     console.error("kawarp load error:", err);

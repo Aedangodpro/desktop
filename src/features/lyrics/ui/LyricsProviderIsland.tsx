@@ -26,17 +26,17 @@ function formatOffsetBadge(ms: number): string {
 
 export function LyricsProviderIsland() {
   const { t } = useTranslation();
-  const {
-    availableProviders,
-    activeProvider,
-    selectProvider,
-    braccatoLyrics,
-    rawFormat,
-    offsetMs,
-    setOffset,
-    adjustOffset,
-    resetOffset,
-  } = useLyricsStore();
+  // field selectors, so a lyrics update that does not touch the island does
+  // not re-render it (this sits in the player's top notch)
+  const availableProviders = useLyricsStore((s) => s.availableProviders);
+  const activeProvider = useLyricsStore((s) => s.activeProvider);
+  const selectProvider = useLyricsStore((s) => s.selectProvider);
+  const braccatoLyrics = useLyricsStore((s) => s.braccatoLyrics);
+  const rawFormat = useLyricsStore((s) => s.rawFormat);
+  const offsetMs = useLyricsStore((s) => s.offsetMs);
+  const setOffset = useLyricsStore((s) => s.setOffset);
+  const adjustOffset = useLyricsStore((s) => s.adjustOffset);
+  const resetOffset = useLyricsStore((s) => s.resetOffset);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [offsetOpen, setOffsetOpen] = useState(false);
