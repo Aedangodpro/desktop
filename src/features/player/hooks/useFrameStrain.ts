@@ -8,17 +8,23 @@ const LATE_SHARE = 0.2;
 const STRIKES_TO_FLAG = 2;
 // Below ~42fps the cadence itself is too slow, jitter or not.
 const SLOW_MEDIAN_MS = 24;
+// A late frame is measured against a 60 Hz budget at minimum. On a 200 Hz panel
+// the fastest frames are ~5 ms apart, so 1.8x of *them* is 9 ms — an ordinary
+// doubled refresh — and that used to read as a strained GPU and step the
+// visuals down mid-song for no reason.
+const MIN_BASELINE_MS = 1000 / 60;
 
-function isStrained(deltas: number[]): boolean {
+export function isStrained(deltas: number[]): boolean {
   if (deltas.length < 30) return false;
   const sorted = [...deltas].sort((a, b) => a - b);
   const frame = sorted[Math.floor(sorted.length * 0.1)];
   const median = sorted[Math.floor(sorted.length * 0.5)];
+  const baseline = Math.max(frame, MIN_BASELINE_MS);
   // A steady but slow cadence (every frame taking 50ms, say) has no late
   // frames relative to its own pace, so jitter alone never flags the devices
   // that most need the cheaper mode.
   if (median > SLOW_MEDIAN_MS) return true;
-  const late = deltas.filter((delta) => delta > frame * LATE_FACTOR).length;
+  const late = deltas.filter((delta) => delta > baseline * LATE_FACTOR).length;
   return late / deltas.length > LATE_SHARE;
 }
 
