@@ -50,9 +50,13 @@ export function paintLine(frame: SceneFrame, layout: LineLayout) {
 
 function litState(layout: LineLayout, timeMs: number): string {
   if (timeMs >= lineExitMs(layout.line)) return "done";
-  return String(
-    layout.tokens.filter((placed) => placed.token.startMs <= timeMs).length,
-  );
+  // Counting beats `tokens.filter(...).length`: the key is built for every
+  // visible line on every frame, and the filter allocated an array each time.
+  let lit = 0;
+  for (const placed of layout.tokens) {
+    if (placed.token.startMs <= timeMs) lit += 1;
+  }
+  return String(lit);
 }
 
 export function visibleLines(frame: SceneFrame): VisibleLine[] {

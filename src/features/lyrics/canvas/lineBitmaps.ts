@@ -10,10 +10,10 @@ export type PaintLine = (ctx: CanvasRenderingContext2D, top: number) => void;
 
 export class LineBitmaps {
   private readonly bitmaps = new Map<number, Bitmap>();
-  private seen = new Set<number>();
+  private readonly seen = new Set<number>();
 
   begin() {
-    this.seen = new Set();
+    this.seen.clear();
   }
 
   keep(index: number) {

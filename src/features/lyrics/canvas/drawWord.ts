@@ -10,8 +10,19 @@ export interface TokenPaint {
   dpr: number;
 }
 
+// Alpha is quantised to a byte and interned, so a line of text that is redrawn
+// every frame stops producing a new `rgba(...)` string per token per frame.
+const WHITE_STEPS = 256;
+const whiteByAlpha: (string | undefined)[] = [];
+
 export function white(alpha: number): string {
-  return `rgba(255, 255, 255, ${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
+  const clamped = alpha > 0 ? (alpha < 1 ? alpha : 1) : 0;
+  const index = Math.round(clamped * (WHITE_STEPS - 1));
+  const cached = whiteByAlpha[index];
+  if (cached !== undefined) return cached;
+  const value = `rgba(255, 255, 255, ${(index / (WHITE_STEPS - 1)).toFixed(3)})`;
+  whiteByAlpha[index] = value;
+  return value;
 }
 
 function highlightStyle(
@@ -46,8 +57,19 @@ export function drawToken(
   const { ctx } = paint;
   const y = Math.round((paint.top + placed.baseline) * paint.dpr) / paint.dpr;
   const text = placed.token.text;
-  ctx.fillStyle = white(paint.base);
-  ctx.fillText(text, placed.x, y);
+  // A token that has been swept completely is painted edge to edge by its
+  // highlight, so the muted base pass underneath it is never visible. Skipping
+  // it removes one text draw for every word that has already been sung, which
+  // is most of the line while a track plays.
+  const covered =
+    highlight !== null &&
+    highlight.solid >= 1 &&
+    highlight.clear >= 1 &&
+    highlight.opacity >= 1;
+  if (!covered) {
+    ctx.fillStyle = white(paint.base);
+    ctx.fillText(text, placed.x, y);
+  }
   if (!highlight || highlight.opacity <= 0) return;
   if (highlight.clear <= 0) return;
   ctx.fillStyle = highlightStyle(paint, placed, highlight);
