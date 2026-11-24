@@ -12,11 +12,26 @@
  */
 import { LyricsCanvasRenderer } from "/src/features/lyrics/canvas/lyricsCanvasRenderer";
 
-const LINE_COUNT = 60;
-const WORDS_PER_LINE = 8;
-const WORD_MS = 320;
-const LINE_MS = WORDS_PER_LINE * WORD_MS + 400;
-const SAMPLE_MS = 4000;
+// Query params let the probe be pointed at the size the player actually draws:
+// `?w=1150&h=1400&dpr=1.5&wordMs=1800&instrumental=1`. The defaults keep the
+// original small fixture, so existing numbers stay comparable.
+const params = new URLSearchParams(location.search);
+const number = (name: string, fallback: number) => {
+  const value = Number(params.get(name));
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+
+const LINE_COUNT = number("lines", 60);
+const WORDS_PER_LINE = number("words", 8);
+const WORD_MS = number("wordMs", 320);
+// A token longer than 1.5 s animates the glow, which paints through
+// `shadowBlur` — the costliest call the renderer makes.
+const LONG_WORD_MS = number("longMs", WORD_MS);
+// Instrumental lines draw a clipped, glowing note every frame.
+const INSTRUMENTAL_EVERY = number("instrumental", 0);
+const LINE_MS =
+  (WORDS_PER_LINE - 1) * WORD_MS + Math.max(WORD_MS, LONG_WORD_MS) + 400;
+const SAMPLE_MS = number("sampleMs", 4000);
 
 interface LyricPart {
   startTimeMs: number;
@@ -28,12 +43,17 @@ function makeLyrics(): unknown[] {
   const lines = [];
   let start = 0;
   for (let lineIndex = 0; lineIndex < LINE_COUNT; lineIndex++) {
+    if (INSTRUMENTAL_EVERY > 0 && lineIndex % INSTRUMENTAL_EVERY === 0) {
+      lines.push({ startTimeMs: start, durationMs: LINE_MS, words: "" });
+      start += LINE_MS;
+      continue;
+    }
     const parts: LyricPart[] = [];
     for (let word = 0; word < WORDS_PER_LINE; word++) {
       parts.push({
         startTimeMs: start + word * WORD_MS,
         words: word === 0 ? `Line ${lineIndex}` : `word${word}`,
-        durationMs: WORD_MS,
+        durationMs: word === WORDS_PER_LINE - 1 ? LONG_WORD_MS : WORD_MS,
       });
     }
     lines.push({
@@ -84,6 +104,11 @@ proto.clearRect = function patchedClearRect(
 
 const host = document.getElementById("host") as HTMLDivElement;
 const stage = document.getElementById("stage") as HTMLDivElement;
+const CANVAS_WIDTH = number("w", 640);
+const CANVAS_HEIGHT = number("h", 720);
+const DPR = number("dpr", 2);
+host.style.width = `${CANVAS_WIDTH}px`;
+host.style.height = `${CANVAS_HEIGHT}px`;
 
 const mainCanvas = document.createElement("canvas");
 mainCanvas.style.position = "absolute";
@@ -110,7 +135,7 @@ const renderer = new LyricsCanvasRenderer(
 );
 
 renderer.setLyrics(makeLyrics() as never);
-renderer.resize(640, 720, 2);
+renderer.resize(CANVAS_WIDTH, CANVAS_HEIGHT, DPR);
 
 function frames(): Promise<number[]> {
   return new Promise((resolve) => {

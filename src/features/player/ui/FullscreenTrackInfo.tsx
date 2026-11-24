@@ -91,7 +91,10 @@ export function FullscreenTrackInfo({ onClose }: FullscreenTrackInfoProps) {
           onClick={handleLikeToggle}
           className={cn(
             "relative inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[11px] border-none bg-white/[0.06] cursor-pointer text-white transition-colors duration-200 ease-out hover:bg-white/[0.12] active:scale-[0.92]",
-            glassBlur && "backdrop-blur-xl backdrop-brightness-[1.15]",
+            // Translucency instead of `backdrop-filter`: the like button sits
+            // over the player's animated background, so a live blur here is a
+            // per-frame compositor pass.
+            glassBlur && "bg-white/[0.12]",
           )}
         >
           <LikeMorphIcon liked={Boolean(isLiked)} size={20} />

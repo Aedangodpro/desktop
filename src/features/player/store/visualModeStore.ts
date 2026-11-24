@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { isWeakDevice } from "@/shared/lib";
+import { isSoftwareGpu, isWeakDevice } from "@/shared/lib";
 
 export type VisualMode = "full" | "balanced" | "lite";
 
@@ -15,7 +15,9 @@ export function visualModeRank(mode: VisualMode): number {
 /** The next cheaper mode, or null when already at the cheapest. */
 export function nextLowerMode(mode: VisualMode): VisualMode | null {
   const rank = QUALITY[mode];
-  return VISUAL_MODES.find((candidate) => QUALITY[candidate] === rank - 1) ?? null;
+  return (
+    VISUAL_MODES.find((candidate) => QUALITY[candidate] === rank - 1) ?? null
+  );
 }
 
 export interface VisualModeState {
@@ -37,8 +39,10 @@ export const useVisualModeStore = create<VisualModeState>()(
     (set) => ({
       // Hardware that cannot composite the full effect stack starts one step
       // down instead of rendering in the single digits until the user digs
-      // through the visuals picker.
-      mode: isWeakDevice() ? "balanced" : "full",
+      // through the visuals picker. Software WebGL (SwiftShader, llvmpipe, a
+      // blocklisted driver) is worse than "weak": the warp, the ambient canvas
+      // and the lyrics all run on the CPU, so it starts at the cheapest mode.
+      mode: isSoftwareGpu() ? "lite" : isWeakDevice() ? "balanced" : "full",
       autoMode: null,
       ambientAvailable: false,
       setMode: (mode) => set({ mode, autoMode: null }),
@@ -70,8 +74,6 @@ export function useEffectiveVisualMode(): VisualMode {
 export const useAmbientEnabled = () => useEffectiveVisualMode() !== "lite";
 
 export const useLyricsEdgeFade = () => useEffectiveVisualMode() !== "lite";
-
-export const useLyricsEdgeBlur = () => useEffectiveVisualMode() === "full";
 
 export const useKawarpEnabled = () => useEffectiveVisualMode() !== "lite";
 

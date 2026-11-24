@@ -4,4 +4,4 @@ export {
   usePageBackdropStore,
   type PageBackdropOptions,
 } from "./pageBackdrop";
-export { isWeakDevice } from "./deviceTier";
+export { isSoftwareGpu, isSoftwareGpuName, isWeakDevice } from "./deviceTier";

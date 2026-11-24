@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { Lyric } from "@braccato/parsers";
 import { LyricsCanvasRenderer } from "@/features/lyrics";
 import { usePlayerStore } from "../store/playerStore";
@@ -13,14 +13,8 @@ import { snapStage } from "./pixelSnap";
 // zoom changes, and every tick costs a forced layout.
 const SNAP_CHECK_MS = 1000;
 
-export interface ScrollEdges {
-  atTop: boolean;
-  atBottom: boolean;
-}
-
 export interface LyricsCanvasHandle {
   rendererRef: RefObject<LyricsCanvasRenderer | null>;
-  edges: ScrollEdges;
   releasePin: () => void;
 }
 
@@ -38,10 +32,6 @@ export function useLyricsCanvas(
 ): LyricsCanvasHandle {
   const rendererRef = useRef<LyricsCanvasRenderer | null>(null);
   const pinnedRef = useRef(false);
-  const [edges, setEdges] = useState<ScrollEdges>({
-    atTop: true,
-    atBottom: false,
-  });
 
   const releasePin = () => {
     if (!pinnedRef.current) return;
@@ -56,12 +46,7 @@ export function useLyricsCanvas(
     const live = refs.live.current;
     if (!host || !stage || !canvas || !live) return;
     const clock = createMediaClock();
-    const renderer = new LyricsCanvasRenderer(
-      canvas,
-      live,
-      clock,
-      (atTop, atBottom) => setEdges({ atTop, atBottom }),
-    );
+    const renderer = new LyricsCanvasRenderer(canvas, live, clock, () => {});
     rendererRef.current = renderer;
     const { status, positionMs } = usePlayerStore.getState();
     pinnedRef.current = startsPinnedToTop(status, positionMs);
@@ -125,5 +110,5 @@ export function useLyricsCanvas(
     rendererRef.current?.setFogEnabled(fogEnabled);
   }, [fogEnabled]);
 
-  return { rendererRef, edges, releasePin };
+  return { rendererRef, releasePin };
 }

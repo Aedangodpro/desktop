@@ -103,18 +103,20 @@ export function Notch({
 
   return (
     <div className={cn("relative", className)} style={{ width: w, height: H }}>
-      {tone === "glass" && blur && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute top-0 left-0 backdrop-blur-[2px]"
-          style={shapeStyle}
-        />
-      )}
+      {/* The glass fill is static translucency, not `backdrop-filter`. This
+          notch sits on top of the player's WebGL background, and a backdrop
+          filter there re-blurs its whole shape on every frame the background
+          moves — a compositor pass per frame for 2 px of blur nobody can see.
+          A slightly denser fill reads the same and costs nothing. */}
       <div
         aria-hidden
         className={cn(
           "pointer-events-none absolute top-0 left-0",
-          tone === "canvas" ? "bg-bg-canvas" : "bg-black/35",
+          tone === "canvas"
+            ? "bg-bg-canvas"
+            : blur
+              ? "bg-black/45"
+              : "bg-black/35",
         )}
         style={shapeStyle}
       />

@@ -1,7 +1,10 @@
+const SOFTWARE_GPU = /swiftshader|llvmpipe|softpipe|software|microsoft basic/i;
+
 const WEAK_GPU =
   /swiftshader|llvmpipe|softpipe|software|microsoft basic|intel\(r\) hd graphics|intel\(r\) uhd graphics 6\d\d|mali-[gt]\d|adreno \(tm\) [1-5]/i;
 
 let cachedWeak: boolean | null = null;
+let cachedSoftware: boolean | null = null;
 
 function readNumber(source: object, key: string): number | undefined {
   const value: unknown = Reflect.get(source, key);
@@ -23,6 +26,24 @@ function gpuRenderer(): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * Whether the WebGL renderer is a software rasteriser. A machine can be fast
+ * and still land here: driver blocklists and a switched-off "use hardware
+ * acceleration" setting both do it, and then every animated surface in the
+ * player is drawn on the CPU. Those machines need the cheapest visual mode, not
+ * the middle one.
+ */
+export function isSoftwareGpuName(renderer: string): boolean {
+  return SOFTWARE_GPU.test(renderer);
+}
+
+export function isSoftwareGpu(): boolean {
+  if (cachedSoftware !== null) return cachedSoftware;
+  if (typeof document === "undefined") return false;
+  cachedSoftware = isSoftwareGpuName(gpuRenderer());
+  return cachedSoftware;
 }
 
 export function isWeakDevice(): boolean {

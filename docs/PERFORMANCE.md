@@ -10,8 +10,8 @@ each one costs, what was measured, and what is still unmeasured.
 | Album-colour warp (WebGL)          | `engine/kawarpEngine.ts`                | 30 fps, fixed  | display rate, ≤60 |
 | Ambient background (worker canvas) | `hooks/useAmbientWorker.ts`             | 30 fps         | 30 fps            |
 | Lyrics canvas                      | `lyrics/canvas/lyricsCanvasRenderer.ts` | on demand      | on demand         |
-| Edge blur bands over the lyrics    | `player/ui/CanvasLyricsView.tsx`        | full visuals   | full visuals      |
-| Notch glass (`backdrop-blur-2px`)  | `shared/ui/Notch.tsx`                   | full visuals   | full visuals      |
+| Edge blur bands over the lyrics    | `player/ui/CanvasLyricsView.tsx`        | full visuals   | removed           |
+| Notch glass (`backdrop-blur-2px`)  | `shared/ui/Notch.tsx`                   | full visuals   | static fill       |
 | Page cover backdrop (`blur(56px)`) | `navigation/ui/PageCoverBackdrop.tsx`   | static image   | static image      |
 
 Only the warp actually stepped at 30 fps, but it is the largest moving surface
@@ -71,6 +71,40 @@ remaining cost is canvas rasterisation of the text bitmaps, not scripting.
 - `useAdaptiveVisuals` samples frame deltas for 3 s every 10 s and steps the
   visual mode down one level after two strained windows. It only lowers the
   session mode, never the saved preference.
+
+## `backdrop-filter` above a moving surface
+
+The player's chrome floats over the warp. A `backdrop-filter` on one of those
+panels is not a one-off: the compositor has to copy and blur the backdrop again
+on every frame the surface under it changes, and in the fullscreen player that
+surface changes at the display rate. The chrome is small, so the cost is easy to
+miss in a still screenshot and easy to feel while a song plays, and it is the
+one cost that grows with the monitor while the work behind it stays the same.
+
+Full visual mode used to turn on four of them at once — the two edge-blur bands
+over the lyrics, the 2 px notch blur and the `backdrop-blur-xl` on the like
+button. All four are gone in favour of static translucency: the lyrics canvas
+already fades its own content at the edges (`EdgeFog`), and a denser fill reads
+the same at 2–20 px of blur. `playerSurfaces.test.ts` fails if one comes back to
+any of those three files.
+
+A machine can also be fast and still rasterise on the CPU: driver blocklists and
+a switched-off "use hardware acceleration" setting both do it. `isSoftwareGpu()`
+(`shared/lib/deviceTier.ts`) now starts those machines in `lite` instead of
+`balanced`, because the warp, the ambient canvas and the lyrics are all their
+CPU's problem in that state.
+
+## Measured on this pass
+
+`scripts/perf/lyricsProbe.ts` now takes the canvas size and the lyric shape from
+its query string (`?w=1150&h=1400&dpr=1.5&wordMs=320&longMs=1800&instrumental=4`),
+so the probe can be pointed at the box the player actually draws. At 1700×1400
+at dpr 2 with glow words and instrumental lines, the renderer's scripting cost
+is ~0.3 ms per frame (`FireAnimationFrame` 55 ms across a 3 s trace, two rAF
+loops), so the canvas is not what a fast machine is waiting on. Headless
+Chromium does not rasterise or composite the page, so paint and GPU cost still
+cannot be measured here; that is exactly why the fix above targets the one
+category that is known to be expensive per frame regardless of GPU speed.
 
 ## Still unmeasured here
 
