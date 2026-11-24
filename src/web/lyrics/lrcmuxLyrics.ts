@@ -1,5 +1,6 @@
 import type { LyricsCandidate } from "@/shared/contracts/lyrics";
 import { cleanLyricsTitle } from "./lyricsTitle";
+import { withTimeout } from "./signal";
 import type { LyricsHint, LyricsProvider } from "./types";
 
 /**
@@ -77,7 +78,10 @@ function normalizeWords(
     if (word.endMs < word.startMs) word.endMs = word.startMs;
     if (next && next.startMs < word.startMs) next.startMs = word.startMs;
     if (i === words.length - 1 && word.endMs <= word.startMs) {
-      word.endMs = Math.max(word.startMs + 1, lineEnd > lineStart ? lineEnd : 0);
+      word.endMs = Math.max(
+        word.startMs + 1,
+        lineEnd > lineStart ? lineEnd : 0,
+      );
     }
   }
   return words;
@@ -98,9 +102,7 @@ function normalizeLines(raw: unknown): TimedLine[] {
     const startMs = start === null ? null : Math.round(start);
     const rawEnd = asNumber(line.end);
     const endMs =
-      startMs === null
-        ? 0
-        : Math.max(startMs, Math.round(rawEnd ?? startMs));
+      startMs === null ? 0 : Math.max(startMs, Math.round(rawEnd ?? startMs));
     const words = normalizeWords(line.words, startMs ?? 0, endMs);
     const text =
       (typeof line.text === "string" ? line.text : "").trim() ||
@@ -128,8 +130,7 @@ function toRichsyncContent(lines: TimedLine[]): string {
   const payload = lines.map((line) => {
     const startMs = line.startMs ?? 0;
     const words = line.words.map((word, index) => ({
-      c:
-        index === line.words.length - 1 ? word.text.trimEnd() : word.text,
+      c: index === line.words.length - 1 ? word.text.trimEnd() : word.text,
       o: Math.round(word.startMs) / 1000,
     }));
     // the last word's own end is more accurate than the line end, which often
@@ -171,7 +172,8 @@ function isDifferentRecording(
   expectedMs: number | undefined,
   actualMs: number | undefined,
 ): boolean {
-  if (!expectedMs || expectedMs <= 0 || !actualMs || actualMs <= 0) return false;
+  if (!expectedMs || expectedMs <= 0 || !actualMs || actualMs <= 0)
+    return false;
   const tolerance = Math.max(8_000, expectedMs * 0.05);
   return Math.abs(actualMs - expectedMs) > tolerance;
 }
@@ -291,19 +293,24 @@ function toCandidate(
   };
 }
 
-function request(url: string, signal?: AbortSignal): Promise<Response> {
-  const timeout = AbortSignal.timeout(TIMEOUT_MS);
-  return fetch(url, {
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    headers: { accept: "application/json" },
-  });
+async function request(url: string, signal?: AbortSignal): Promise<Response> {
+  const scope = withTimeout(signal, TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      signal: scope.signal,
+      headers: { accept: "application/json" },
+    });
+  } finally {
+    scope.dispose();
+  }
 }
 
 function parkOnRateLimit(response: Response): void {
   const retryAfter = Number(response.headers.get("retry-after"));
-  const ms = Number.isFinite(retryAfter) && retryAfter > 0
-    ? Math.min(retryAfter * 1000, MAX_BACKOFF_MS)
-    : DEFAULT_BACKOFF_MS;
+  const ms =
+    Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, MAX_BACKOFF_MS)
+      : DEFAULT_BACKOFF_MS;
   cooldownUntil = Date.now() + ms;
 }
 
@@ -347,5 +354,7 @@ export async function fetchLrcmuxLyrics(
 export const lrcmuxProvider: LyricsProvider = {
   id: "LRCMUX",
   priority: 10,
+  // JSON carries word timings; there is no syllable level in this payload
+  maxSyncLevel: "word_level",
   fetchLyrics: fetchLrcmuxLyrics,
 };

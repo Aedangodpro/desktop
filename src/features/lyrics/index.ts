@@ -5,6 +5,11 @@ export {
   type WordData,
 } from "./engine/lyricsParser";
 export {
+  mergeSyllablesIntoWords,
+  findActiveWordIndex,
+  type TimedWord,
+} from "./engine/wordGroups";
+export {
   useLyricsStore,
   hasSyncedLyricsSources,
   type LyricsProviderOption,

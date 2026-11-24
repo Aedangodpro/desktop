@@ -238,9 +238,15 @@ of the API and unreachable for a browser (and refuses every call with `403`
 today), so in `--mode web` `api.streamLyrics` delegates to the public sources
 in `src/web/lyrics`:
 
-- `resolveLyrics.ts` asks providers in priority order and emits the same
-  `provider` + `done` events, so `playerEngine`, the cache, the offsets and the
-  lyrics canvas work unchanged.
+- `resolveLyrics.ts` / `streamLyrics.ts` race every provider at once and emit
+  the same `provider` + `done` events, so `playerEngine`, the cache, the
+  offsets and the lyrics canvas work unchanged. The first answer is painted as
+  soon as it lands; the race settles by timing tier, waiting a short grace
+  window for a possible richer answer before aborting the requests still in
+  flight.
+- `ranking.ts` scores each candidate (recording match 35%, text 25%, timing
+  25%, source trust 15%) and ranks by timing depth first, so syllable > word >
+  line > plain. `isDecisiveCandidate` is the early-exit rule used by the race.
 - `lrcmuxLyrics.ts` — LRCMUX (`GET https://api.lrcmux.dev/get?format=json`)
   aggregates Deezer, KuGou and YouTube Music. Word-level results are converted
   to the richsync JSON the parser already understands (it keeps each word's
@@ -252,14 +258,20 @@ in `src/web/lyrics`:
   recording, because its timings would be seconds out of sync.
 - `lrclibLyrics.ts` — LRCLIB (`GET https://lrclib.net/api/get`, then
   `/api/search` with the synced result closest to the track length).
+- `lyricsOvh.ts` — Lyrics.ovh, plain text only. It is registered with
+  `tier: "plain"`, so it is asked only when no synced source found anything.
 
-The first provider with synced lyrics wins. Plain text is held while the
-remaining providers are tried, so a later line-synced result still beats it;
-if nobody has sync the plain text is shown, and if nobody has lyrics the UI
-reports none. Both APIs answer with `access-control-allow-origin: *`, so no
-relay is involved. Titles are cleaned first (`(Official Video)`,
-`[Remastered]`, `- Official Audio`) because YouTube titles carry release noise
-the databases do not index. The desktop build keeps using the API stream.
+The best racing candidate wins: syllable-level beats word-level, which beats
+line-level, which beats plain text from either of the two synced sources. Plain
+results that arrive during the race are kept as the fallback instead of ending
+it. If nobody has lyrics, Lyrics.ovh supplies unsynced text; if that misses too
+the UI reports none. All three APIs answer with
+`access-control-allow-origin: *`, so no relay is involved. Titles are cleaned
+first (`(Official Video)`, `[Remastered]`, `- Official Audio`) because YouTube
+titles carry release noise the databases do not index. The desktop build keeps
+using the API stream. The server's SSE frames are read with the shared
+`src/shared/media/sse.ts` parser, which also accepts CRLF and multi-line data.
+See `docs/LYRICS_PIPELINE.md` for the data flow and how to add a provider.
 
 ## Web-only UI
 

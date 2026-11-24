@@ -1,4 +1,5 @@
-import { resolveLyrics } from "@/web/lyrics";
+import { lyricsProviders, streamLyricsEvents } from "@/web/lyrics";
+import { parseSseStream } from "@/shared/media/sse";
 import { IS_WEB_TARGET } from "@/shared/config/runtimeTarget";
 import {
   getAuthSession,
@@ -1188,7 +1189,8 @@ export const api = {
     signal?: AbortSignal,
     hint?: { title: string; artist: string; durationMs?: number },
   ): AsyncGenerator<LyricsStreamEvent> {
-    // no API access in the browser build: LRCLIB is the lyrics source
+    // no API access in the browser build: the public sources in
+    // `src/web/lyrics` are raced directly
     if (IS_WEB_TARGET) {
       yield* streamWebLyrics(hint, signal);
       return;
@@ -1269,52 +1271,12 @@ export const api = {
       return;
     }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    const flushEvent = (): LyricsStreamEvent | null => {
-      const sep = buffer.indexOf("\n\n");
-      if (sep === -1) return null;
-      const rawEvent = buffer.slice(0, sep);
-      buffer = buffer.slice(sep + 2);
-
-      const dataLines: string[] = [];
-      for (const line of rawEvent.split("\n")) {
-        if (line.startsWith("data:")) {
-          dataLines.push(line.slice(5).trim());
-        }
-      }
-
-      if (dataLines.length === 0) return null;
+    for await (const frame of parseSseStream(res.body, signal)) {
       try {
-        return JSON.parse(dataLines.join("\n")) as LyricsStreamEvent;
+        yield JSON.parse(frame.data) as LyricsStreamEvent;
       } catch {
-        return null;
+        // a malformed frame does not end the stream
       }
-    };
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        let event = flushEvent();
-        while (event) {
-          yield event;
-          event = flushEvent();
-        }
-      }
-
-      buffer += decoder.decode();
-      let event = flushEvent();
-      while (event) {
-        yield event;
-        event = flushEvent();
-      }
-    } finally {
-      reader.releaseLock();
     }
   },
 
@@ -1363,7 +1325,8 @@ export const api = {
 };
 
 // The browser build has no API access, so lyrics come straight from the
-// public sources in `src/web/lyrics` (LRCMUX first, LRCLIB as the fallback).
+// public sources in `src/web/lyrics`. They are raced concurrently and emitted
+// with the same `provider` + `done` events the API streams.
 async function* streamWebLyrics(
   hint: { title: string; artist: string; durationMs?: number } | undefined,
   signal?: AbortSignal,
@@ -1372,27 +1335,5 @@ async function* streamWebLyrics(
     yield { type: "done", cached: false, status: "not_found" };
     return;
   }
-  const resolved = await resolveLyrics(hint, signal).catch(() => null);
-  const candidate = resolved?.candidate ?? null;
-  if (!candidate) {
-    yield { type: "done", cached: false, status: "not_found" };
-    return;
-  }
-  yield {
-    type: "provider",
-    provider: candidate.provider,
-    status: "found",
-    syncLevel: candidate.syncLevel,
-    candidate,
-    ...(hint.durationMs ? { durationMs: hint.durationMs } : {}),
-  };
-  yield {
-    type: "done",
-    cached: false,
-    best: {
-      provider: candidate.provider,
-      quality: candidate.quality.total,
-      syncLevel: candidate.syncLevel,
-    },
-  };
+  yield* streamLyricsEvents(hint, lyricsProviders, signal);
 }

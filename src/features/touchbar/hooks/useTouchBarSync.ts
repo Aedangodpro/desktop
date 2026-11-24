@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { playerEngine } from "@/features/player/engine/playerEngine";
 import { usePlayerStore } from "@/features/player/store/playerStore";
 import { useLyricsStore } from "@/features/lyrics";
+import { mergeSyllablesIntoWords } from "@/features/lyrics/engine/wordGroups";
 import {
   useIsTrackLiked,
   useLikeTrack,
@@ -65,58 +66,7 @@ function isInstrumentalLine(line: LyricLine): boolean {
 }
 
 function mergeLineWords(line: LyricLine): TouchBarWordData[] {
-  const words: TouchBarWordData[] = [];
-  if (!line.words || line.words.length === 0) return words;
-  const lineText = line.text || "";
-  let charCursor = 0;
-
-  for (const w of line.words) {
-    if (!w || !w.text) continue;
-
-    if (w.text.trim().length === 0) {
-      if (words.length > 0) {
-        words[words.length - 1].text += w.text;
-      }
-      continue;
-    }
-
-    const cleanText = w.text.trim();
-    const foundIdx = lineText.indexOf(cleanText, charCursor);
-
-    let isContinuationOfPrevWord = false;
-    if (words.length > 0) {
-      const prev = words[words.length - 1];
-      const prevEndsSpace = /\s$/.test(prev.text);
-      const currStartsSpace = /^\s/.test(w.text);
-
-      if (foundIdx >= 0) {
-        const textBetween = lineText.slice(charCursor, foundIdx);
-        const hasSpaceBetween = /\s/.test(textBetween);
-        if (!hasSpaceBetween && !prevEndsSpace && !currStartsSpace) {
-          isContinuationOfPrevWord = true;
-        }
-      } else if (!prevEndsSpace && !currStartsSpace) {
-        isContinuationOfPrevWord = true;
-      }
-    }
-
-    if (foundIdx >= 0) {
-      charCursor = foundIdx + cleanText.length;
-    }
-
-    if (isContinuationOfPrevWord && words.length > 0) {
-      const prev = words[words.length - 1];
-      prev.text += w.text;
-      prev.endMs = Math.max(prev.endMs, w.endMs);
-    } else {
-      words.push({
-        text: w.text,
-        timeMs: w.timeMs,
-        endMs: w.endMs,
-      });
-    }
-  }
-  return words;
+  return mergeSyllablesIntoWords(line.words ?? [], line.text || "");
 }
 
 function toTrackInfo(track: Track | null): TouchBarTrackInfo | null {

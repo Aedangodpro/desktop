@@ -16,11 +16,13 @@ const STORAGE_INDEX_KEY = "liner_lyrics_v2_index";
 const STORAGE_PREFIX = "liner_lyrics_v2_item_";
 const MAX_ENTRIES = 250;
 
+// Syllable timing is a superset of word timing, which is a superset of line
+// timing, so a syllable-level answer outranks a word-level one.
 const SYNC_RANK: Record<LyricsSyncLevel, number> = {
   plain: 0,
   line_level: 1,
-  syllable_level: 2,
-  word_level: 3,
+  word_level: 2,
+  syllable_level: 3,
 };
 
 // word-level or syllable-level sync check

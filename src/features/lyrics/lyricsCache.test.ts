@@ -192,6 +192,21 @@ describe("lyricsCache advanced caching logic", () => {
       ).toBe("word_level");
     });
 
+    it("prefers syllable-level timing over word-level", () => {
+      const word = makeCandidate("Polaris", "word_level", 96);
+      const syllable = makeCandidate("Atlas", "syllable_level", 90);
+
+      lyricsCache.setProvider("track_syllable", word);
+      lyricsCache.setProvider("track_syllable", syllable);
+
+      expect(lyricsCache.get("track_syllable")?.candidate.provider).toBe(
+        "Atlas",
+      );
+      expect(
+        lyricsCache.get("track_syllable")?.candidate.syncLevel,
+      ).toBe("syllable_level");
+    });
+
     it("preserves individual provider options when set() with availableProviders is called", () => {
       const lrclib = makeCandidate("lrclib", "line_level", 65);
       const cadenceWord = makeCandidate("cadence", "word_level", 92);

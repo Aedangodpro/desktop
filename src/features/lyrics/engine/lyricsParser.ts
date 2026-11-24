@@ -60,17 +60,20 @@ function tryParseRichsync(raw: string): Lyric[] | null {
 
       const text = mergedWords.map((w) => w.c).join("");
 
+      // `o` is an offset from `ts` in the richsync spec (Musixmatch, Atlas),
+      // but some aggregators (LRCMUX) put absolute milliseconds there instead.
+      // A real offset can never exceed the line's own duration, so anything
+      // longer is an absolute timestamp and is used as-is.
+      const wordTime = (offsetSeconds: number | undefined): number => {
+        const rawMs = Math.round((offsetSeconds ?? 0) * 1000);
+        if (rawMs > durationMs) return Math.max(startMs, rawMs);
+        return startMs + rawMs;
+      };
+
       const parts: LyricPart[] = mergedWords.map((w, i, arr): LyricPart => {
-        const rawOffsetMs = Math.round((w.o ?? 0) * 1000);
-        const wordStart =
-          rawOffsetMs >= startMs ? rawOffsetMs : startMs + rawOffsetMs;
-        const nextRaw = arr[i + 1]?.o;
+        const wordStart = wordTime(w.o);
         const nextWordStart =
-          nextRaw !== undefined
-            ? Math.round((nextRaw ?? 0) * 1000) >= startMs
-              ? Math.round((nextRaw ?? 0) * 1000)
-              : startMs + Math.round((nextRaw ?? 0) * 1000)
-            : endMs;
+          arr[i + 1]?.o !== undefined ? wordTime(arr[i + 1].o) : endMs;
         return {
           startTimeMs: wordStart,
           durationMs: Math.max(0, nextWordStart - wordStart),

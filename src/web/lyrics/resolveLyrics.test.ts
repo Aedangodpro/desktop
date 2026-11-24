@@ -47,6 +47,8 @@ const lrclibSynced = {
   plainLyrics: "Look at the stars",
 };
 
+const ovhPlain = { lyrics: "Look at the stars\nLook how they shine" };
+
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
@@ -58,8 +60,8 @@ afterEach(() => {
 });
 
 describe("resolveLyrics", () => {
-  it("returns LRCMUX word-level lyrics without asking LRCLIB", async () => {
-    fetchMock.mockResolvedValueOnce(json(lrcmuxWord));
+  it("returns LRCMUX word-level lyrics and starts LRCLIB alongside it", async () => {
+    fetchMock.mockResolvedValue(json(lrcmuxWord));
 
     const resolved = await resolveLyrics({
       title: "Yellow",
@@ -68,14 +70,19 @@ describe("resolveLyrics", () => {
 
     expect(resolved?.candidate.provider).toBe("LRCMUX");
     expect(resolved?.candidate.syncLevel).toBe("word_level");
-    expect(resolved?.attempted).toEqual(["LRCMUX"]);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // both synced sources race; the decisive word answer stops the race
+    expect(resolved?.attempted).toEqual(["LRCMUX", "LRCLIB"]);
+    // LRCMUX /get, LRCLIB /get, LRCLIB /search (its payload has no lyrics)
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(hostOf(fetchMock.mock.calls[0]![0])).toBe("api.lrcmux.dev");
+    expect(hostOf(fetchMock.mock.calls[1]![0])).toBe("lrclib.net");
   });
 
   it("falls back to LRCLIB when LRCMUX has nothing", async () => {
     fetchMock
-      .mockResolvedValueOnce(json({ status: 404, detail: "no lyrics found" }, 404))
+      .mockResolvedValueOnce(
+        json({ status: 404, detail: "no lyrics found" }, 404),
+      )
       .mockResolvedValueOnce(json(lrclibSynced));
 
     const resolved = await resolveLyrics({
@@ -87,7 +94,6 @@ describe("resolveLyrics", () => {
     expect(resolved?.candidate.provider).toBe("LRCLIB");
     expect(resolved?.candidate.syncLevel).toBe("line_level");
     expect(resolved?.attempted).toEqual(["LRCMUX", "LRCLIB"]);
-    expect(hostOf(fetchMock.mock.calls[1]![0])).toBe("lrclib.net");
   });
 
   it("prefers LRCLIB line sync over LRCMUX plain text", async () => {
@@ -104,10 +110,12 @@ describe("resolveLyrics", () => {
     expect(resolved?.candidate.syncLevel).toBe("line_level");
   });
 
-  it("keeps LRCMUX plain text when LRCLIB has nothing", async () => {
+  it("keeps LRCMUX plain text and only then asks Lyrics.ovh", async () => {
     fetchMock
       .mockResolvedValueOnce(json(lrcmuxPlain))
-      .mockResolvedValueOnce(json([], 200));
+      .mockResolvedValueOnce(json([], 200))
+      .mockResolvedValueOnce(json([], 200))
+      .mockResolvedValueOnce(json(ovhPlain));
 
     const resolved = await resolveLyrics({
       title: "Yellow",
@@ -117,18 +125,39 @@ describe("resolveLyrics", () => {
     expect(resolved?.candidate.provider).toBe("LRCMUX");
     expect(resolved?.candidate.syncLevel).toBe("plain");
     expect(resolved?.candidate.lyrics.content).toBe("Look at the stars");
+    expect(resolved?.attempted).toEqual(["LRCMUX", "LRCLIB"]);
+  });
+
+  it("uses Lyrics.ovh when no synced source has lyrics", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ status: 404 }, 404))
+      .mockResolvedValueOnce(json([], 200))
+      .mockResolvedValueOnce(json([], 200))
+      .mockResolvedValueOnce(json(ovhPlain));
+
+    const resolved = await resolveLyrics({
+      title: "Yellow",
+      artist: "Coldplay",
+    });
+
+    expect(resolved?.candidate.provider).toBe("Lyrics.ovh");
+    expect(resolved?.candidate.syncLevel).toBe("plain");
+    expect(resolved?.candidate.lyrics.content).toBe(
+      "Look at the stars\nLook how they shine",
+    );
+    expect(resolved?.attempted).toEqual(["LRCMUX", "LRCLIB", "Lyrics.ovh"]);
   });
 
   it("returns null when no provider has lyrics", async () => {
     fetchMock
       .mockResolvedValueOnce(json({ status: 404 }, 404))
-      .mockResolvedValueOnce(json([], 200));
+      .mockResolvedValueOnce(json([], 200))
+      .mockResolvedValueOnce(json([], 200))
+      .mockResolvedValueOnce(json({ error: "No lyrics found" }, 404));
 
     await expect(
       resolveLyrics({ title: "Unknown", artist: "Nobody" }),
     ).resolves.toBeNull();
-    // LRCMUX get, then LRCLIB get + search
-    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("does not call any provider without a title and artist", async () => {
@@ -155,6 +184,7 @@ describe("isWebLyricsProvider", () => {
   it("recognizes the reachable sources", () => {
     expect(isWebLyricsProvider("LRCMUX")).toBe(true);
     expect(isWebLyricsProvider("lrclib")).toBe(true);
+    expect(isWebLyricsProvider("Lyrics.ovh")).toBe(true);
     expect(isWebLyricsProvider("Cadence")).toBe(false);
     expect(isWebLyricsProvider(null)).toBe(false);
   });

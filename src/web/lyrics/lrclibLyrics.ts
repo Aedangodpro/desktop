@@ -1,5 +1,6 @@
 import type { LyricsCandidate } from "@/shared/contracts/lyrics";
 import { cleanLyricsTitle } from "./lyricsTitle";
+import { withTimeout } from "./signal";
 import type { LyricsHint, LyricsProvider } from "./types";
 
 export { cleanLyricsTitle };
@@ -56,12 +57,16 @@ function toCandidate(result: LrclibResult): LyricsCandidate | null {
   };
 }
 
-function request(url: string, signal?: AbortSignal): Promise<Response> {
-  const timeout = AbortSignal.timeout(TIMEOUT_MS);
-  return fetch(url, {
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    headers: { accept: "application/json" },
-  });
+async function request(url: string, signal?: AbortSignal): Promise<Response> {
+  const scope = withTimeout(signal, TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      signal: scope.signal,
+      headers: { accept: "application/json" },
+    });
+  } finally {
+    scope.dispose();
+  }
 }
 
 function closest(
@@ -87,6 +92,7 @@ function closest(
 export const lrclibProvider: LyricsProvider = {
   id: "LRCLIB",
   priority: 20,
+  maxSyncLevel: "line_level",
   fetchLyrics: (hint, signal) => fetchLrclibLyrics(hint, signal),
 };
 
