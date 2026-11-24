@@ -49,7 +49,7 @@ function DailyMixCover({
           src={coverUrl}
           alt="Mix Cover"
           fill
-          sizes="175px"
+          sizes="150px"
           className={`object-cover transition-all duration-300 group-hover:brightness-[1.15] ${
             imageLoaded ? "opacity-100" : "opacity-0"
           }`}
@@ -66,14 +66,14 @@ function DailyMixCover({
 
       <svg
         viewBox="0 0 45 35"
-        className="absolute top-[12px] left-[12px] w-[22px] h-[17px] pointer-events-none transition-colors duration-500"
+        className="absolute top-[10px] left-[10px] w-[20px] h-[16px] pointer-events-none transition-colors duration-500"
         style={{ fill: logoColor }}
       >
         <path d="M4 0C1.79086 0 0 1.79086 0 4V27.2081C0 30.2751 3.30951 32.201 5.97608 30.6859L13.9629 26.1478C16.6295 24.6327 19.939 26.5587 19.939 29.6256V31C19.939 33.2091 21.7298 35 23.939 35H41C43.2091 35 45 33.2091 45 31V27.5586C45 25.3494 43.2091 23.5586 41 23.5586H35.2783C33.0691 23.5586 31.2783 21.7677 31.2783 19.5586V10.0519C31.2783 6.98497 27.9688 5.05899 25.3022 6.57411L17.3153 11.1121C14.6488 12.6273 11.3393 10.7013 11.3393 7.63433V4C11.3393 1.79086 9.54843 0 7.33929 0H4Z" />
       </svg>
 
       <div
-        className="absolute bottom-[8px] left-[10px] flex flex-col text-white text-[44px] pointer-events-none select-none"
+        className="absolute bottom-[7px] left-[9px] flex flex-col text-white text-[38px] pointer-events-none select-none"
         style={mixLabelStyle}
       >
         {labelLines.map((line) => (
@@ -82,7 +82,7 @@ function DailyMixCover({
       </div>
 
       <span
-        className="absolute bottom-[8px] right-[10px] text-white text-[46px] pointer-events-none select-none"
+        className="absolute bottom-[7px] right-[9px] text-white text-[40px] pointer-events-none select-none"
         style={mixNumberStyle}
       >
         {mixNumber}

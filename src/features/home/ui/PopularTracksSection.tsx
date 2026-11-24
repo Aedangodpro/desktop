@@ -126,7 +126,7 @@ function TrackCard({
 
   return (
     <div
-      className="group flex-shrink-0 w-[175px] cursor-pointer select-none"
+      className="group flex-shrink-0 w-[150px] cursor-pointer select-none"
       onClick={handleClick}
       onContextMenu={handleContextMenu}
     >
@@ -152,7 +152,7 @@ function TrackCard({
             src={item.item.coverUrl}
             alt={item.item.title}
             fill
-            sizes="175px"
+            sizes="150px"
             className={`object-cover transition-all duration-300 group-hover:brightness-[1.15] ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
@@ -246,7 +246,7 @@ function AlbumCard({
 
   return (
     <div
-      className="group flex-shrink-0 w-[175px] cursor-pointer select-none"
+      className="group flex-shrink-0 w-[150px] cursor-pointer select-none"
       onPointerDown={() => prefetchCollection("album", item.item.id)}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
@@ -262,7 +262,7 @@ function AlbumCard({
             src={item.item.coverUrl}
             alt={item.item.title}
             fill
-            sizes="175px"
+            sizes="150px"
             className={`object-cover transition-all duration-300 group-hover:brightness-[1.15] ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
@@ -354,7 +354,7 @@ function PlaylistCard({
 
   return (
     <div
-      className="group flex-shrink-0 w-[175px] cursor-pointer select-none"
+      className="group flex-shrink-0 w-[150px] cursor-pointer select-none"
       onPointerDown={() => prefetchCollection("playlist", item.item.id)}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
@@ -370,7 +370,7 @@ function PlaylistCard({
             src={item.item.coverUrl}
             alt={item.item.title}
             fill
-            sizes="175px"
+            sizes="150px"
             className={`object-cover transition-all duration-300 group-hover:brightness-[1.15] ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
@@ -440,7 +440,7 @@ function PopularTracksSection({
       />
 
       <ScrollableRow
-        className={`flex gap-[28px] pl-3 pr-3 mt-[12px] overflow-x-auto pb-[2px] ${rowClassName}`}
+        className={`flex gap-[8px] pl-3 pr-3 mt-[10px] overflow-x-auto pb-[2px] ${rowClassName}`}
       >
         {items.map((item, index) => (
           <PopularItemCard

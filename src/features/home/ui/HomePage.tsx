@@ -121,25 +121,14 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
               )
             )}
 
-            {popularAlbums.length > 0 && (
-              <PopularTracksSection
-                title={t("home.popularAlbums")}
-                icon={<AlbumFill />}
-                items={popularAlbums}
-                headingMarginTop={hasMixesSlot ? "mt-[22px]" : "mt-0"}
-              />
-            )}
-
+            {/* Same order as the home reference: what you would press first,
+                then the lists you scroll. */}
             {listeningNow.length > 0 && (
               <ListeningNowSection
                 title={t("home.whatEveryonesOn")}
                 icon={<FireFill />}
                 tracks={listeningNow}
-                headingMarginTop={
-                  hasMixesSlot || popularAlbums.length > 0
-                    ? "mt-[22px]"
-                    : "mt-0"
-                }
+                headingMarginTop={hasMixesSlot ? "mt-[26px]" : "mt-0"}
               />
             )}
 
@@ -148,7 +137,7 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
                 title={t("home.jumpBackIn")}
                 icon={<TimeFill />}
                 items={recentlyPlayed}
-                headingMarginTop="mt-[22px]"
+                headingMarginTop="mt-[26px]"
               />
             )}
 
@@ -157,7 +146,16 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
                 title={t("home.mostListened")}
                 icon={<TrophyFill />}
                 items={popularTracksAllTime}
-                headingMarginTop="mt-[22px]"
+                headingMarginTop="mt-[26px]"
+              />
+            )}
+
+            {popularAlbums.length > 0 && (
+              <PopularTracksSection
+                title={t("home.popularAlbums")}
+                icon={<AlbumFill />}
+                items={popularAlbums}
+                headingMarginTop="mt-[26px]"
               />
             )}
 
@@ -166,7 +164,7 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
                 title={t("home.mostSaved")}
                 icon={<BookmarkFill />}
                 items={mostSaved}
-                headingMarginTop="mt-[22px]"
+                headingMarginTop="mt-[26px]"
               />
             )}
           </div>

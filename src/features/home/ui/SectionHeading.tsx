@@ -20,19 +20,19 @@ export function SectionHeading({
   subtitle,
   icon,
   badge,
-  marginTop = "mt-[22px]",
+  marginTop = "mt-[26px]",
 }: SectionHeadingProps) {
   return (
     <div className={`${marginTop} px-3 flex items-center justify-between`}>
       <div className="flex flex-col gap-0.5">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {icon && (
-            <div className="flex items-center justify-center shrink-0 w-5 h-5 text-text-tertiary [&>svg]:w-5 [&>svg]:h-5">
+            <div className="flex items-center justify-center shrink-0 w-4 h-4 text-text-primary [&>svg]:w-4 [&>svg]:h-4">
               {icon}
             </div>
           )}
           <h2
-            className="font-roboto-flex-heading text-text-primary text-[24px] m-0 leading-none tracking-tight"
+            className="font-roboto-flex-heading text-text-primary text-[17px] m-0 leading-none tracking-[-0.01em]"
             style={headingStyle}
           >
             {title}
