@@ -1,3 +1,5 @@
+import { memoizeText } from "./memo";
+
 const CYR_TO_LAT: Record<string, string> = {
   а: "a",
   б: "b",
@@ -38,7 +40,9 @@ const CYR_TO_LAT: Record<string, string> = {
   ґ: "g",
 };
 
-export function toPhoneticLatin(value: string): string {
+// memoised: matching one result set re-normalises the same artist names once
+// per comparison (see `matching/memo.ts`)
+export const toPhoneticLatin = memoizeText((value: string): string => {
   let result = value.toLowerCase().replace(/ё/gi, "e");
   for (const [cyrillic, latin] of Object.entries(CYR_TO_LAT)) {
     result = result.replaceAll(cyrillic, latin);
@@ -55,15 +59,15 @@ export function toPhoneticLatin(value: string): string {
     .replace(/[^a-z0-9\s]/g, " ")
     .trim()
     .replace(/\s+/g, " ");
-}
+});
 
-export function normalizeWords(value: string): string {
-  return value
+export const normalizeWords = memoizeText((value: string): string =>
+  value
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
-    .replace(/\s+/g, " ");
-}
+    .replace(/\s+/g, " "),
+);
 
 export function normalizeTrackString(value: string): string {
   return normalizeWords(

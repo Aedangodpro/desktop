@@ -1,5 +1,9 @@
 import type { SearchResult } from "@/shared/contracts";
-import { isSameRecording, recordingProfile } from "@/shared/media/matching";
+import {
+  cleanBaseTitle,
+  isSameRecording,
+  recordingProfile,
+} from "@/shared/media/matching";
 import type { SoundCloudSearchHit } from "@/shared/media/soundcloud";
 import { isRelevantSearchHit, searchRelevance } from "./searchRelevance";
 import { soundCloudHitScore } from "./soundCloudHitScore";
@@ -21,12 +25,61 @@ function byScore(left: ScoredTrack, right: ScoredTrack): number {
   return right.score - left.score;
 }
 
+/**
+ * Comparing every upload with every catalog hit is what made the merge cost
+ * ~30 ms of main thread per result set (see `matchingCost.test.ts`). Two titles
+ * can only be the same recording when they share a word, so the comparisons are
+ * indexed by title word: an upload is checked against the handful of hits that
+ * share one of its words instead of all of them.
+ */
+const MIN_BUCKET_TOKEN_LENGTH = 2;
+
+function titleTokens(title: string): string[] {
+  return [
+    ...new Set(
+      cleanBaseTitle(title)
+        .split(" ")
+        .filter((token) => token.length >= MIN_BUCKET_TOKEN_LENGTH),
+    ),
+  ];
+}
+
+function bucketTracks(
+  index: Map<string, ScoredTrack[]>,
+  hit: ScoredTrack,
+): void {
+  for (const token of titleTokens(hit.track.title)) {
+    const bucket = index.get(token);
+    if (bucket) bucket.push(hit);
+    else index.set(token, [hit]);
+  }
+}
+
+function twinsOf(
+  index: Map<string, ScoredTrack[]>,
+  title: string,
+): ScoredTrack[] {
+  const seen = new Set<ScoredTrack>();
+  const twins: ScoredTrack[] = [];
+  for (const token of titleTokens(title)) {
+    for (const hit of index.get(token) ?? []) {
+      if (seen.has(hit)) continue;
+      seen.add(hit);
+      twins.push(hit);
+    }
+  }
+  return twins;
+}
+
 function uniqueSoundCloud(
   query: string,
   youtube: ScoredTrack[],
   soundcloud: SoundCloudSearchHit[],
 ): ScoredTrack[] {
   const kept: ScoredTrack[] = [];
+  const youtubeIndex = new Map<string, ScoredTrack[]>();
+  for (const hit of youtube) bucketTracks(youtubeIndex, hit);
+  const keptIndex = new Map<string, ScoredTrack[]>();
   const candidates = soundcloud
     .filter((hit) => isRelevantSearchHit(query, hit.track))
     .map((hit, rank) => ({
@@ -40,13 +93,20 @@ function uniqueSoundCloud(
       candidate.track,
       candidate.publisherArtists,
     );
-    const twin = youtube.find((hit) => isSameRecording(profile, hit.track));
+    const twin = twinsOf(youtubeIndex, candidate.track.title).find((hit) =>
+      isSameRecording(profile, hit.track),
+    );
     if (twin) {
       twin.score += CROSS_PLATFORM_BONUS;
       continue;
     }
-    if (kept.some((hit) => isSameRecording(profile, hit.track))) continue;
-    kept.push({ track: candidate.track, score: candidate.score });
+    const duplicate = twinsOf(keptIndex, candidate.track.title).some((hit) =>
+      isSameRecording(profile, hit.track),
+    );
+    if (duplicate) continue;
+    const scored = { track: candidate.track, score: candidate.score };
+    kept.push(scored);
+    bucketTracks(keptIndex, scored);
   }
   return kept;
 }

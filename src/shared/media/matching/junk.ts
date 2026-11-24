@@ -1,3 +1,4 @@
+import { memoizeText } from "./memo";
 import { normalizeTrackString } from "./phonetic";
 import { VERSION_PATTERNS } from "./versionTags";
 
@@ -28,14 +29,14 @@ const JUNK_PATTERNS: Array<[RegExp, string]> = [
   [/\(\s*\)|\[\s*\]|\{\s*\}/gu, ""],
 ];
 
-export function stripJunk(value: string): string {
-  return JUNK_PATTERNS.reduce(
+export const stripJunk = memoizeText((value: string): string =>
+  JUNK_PATTERNS.reduce(
     (result, [pattern, replacement]) => result.replace(pattern, replacement),
     value,
   )
     .trim()
-    .replace(/\s+/g, " ");
-}
+    .replace(/\s+/g, " "),
+);
 
 export function cleanSearchTitle(title: string): string {
   return title
@@ -51,7 +52,7 @@ export function cleanSearchTitle(title: string): string {
     .trim();
 }
 
-export function cleanBaseTitle(value: string): string {
+export const cleanBaseTitle = memoizeText((value: string): string => {
   let result = stripJunk(value);
   result = result.replace(
     /[([{]?\s*(?:feat\.?|ft\.?|with)\s+[^)\]}]+[)\]}]?/giu,
@@ -65,7 +66,7 @@ export function cleanBaseTitle(value: string): string {
     result = result.replace(regex, "");
   }
   return normalizeTrackString(result);
-}
+});
 
 export function cleanTitle(value: string): string {
   return cleanBaseTitle(value);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type ApiTrack } from "@/shared/api";
 import { toClientTrack } from "@/shared/api";
+import type { ApiSearchItem } from "@/shared/api";
 import type { Track } from "@/shared/types";
 
 export interface UseSearchTracksOptions {
@@ -18,6 +19,12 @@ export interface UseSearchTracksResult {
   runNow: () => void;
 }
 
+function toTracks(items: ApiSearchItem[]): Track[] {
+  return items
+    .filter((it): it is ApiTrack & { type: "track" } => it.type === "track")
+    .map(toClientTrack);
+}
+
 export function useSearchTracks(
   query: string,
   options: UseSearchTracksOptions = {},
@@ -31,21 +38,31 @@ export function useSearchTracks(
 
   const latestRequestIdRef = useRef(0);
   const lastFetchedQueryRef = useRef("");
+  // only the newest query's lookup keeps running
+  const abortRef = useRef<AbortController | null>(null);
   const trimmed = query.trim();
   const shouldRunSearch = enabled && trimmed.length >= 2;
 
   const runRequest = useCallback(async (requestId: number, q: string) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     try {
-      const res = await api.search(q, "track");
+      const res = await api.search(q, "track", {
+        signal: controller.signal,
+        onPrimary: (primary) => {
+          if (requestId !== latestRequestIdRef.current) return;
+          setTracks(toTracks(primary));
+          setError(null);
+          setPartialWarning(undefined);
+          lastFetchedQueryRef.current = q;
+          setHasLoaded(true);
+          setLoading(false);
+        },
+      });
       if (requestId !== latestRequestIdRef.current) return;
-      setTracks(
-        res.items
-          .filter(
-            (it): it is ApiTrack & { type: "track" } => it.type === "track",
-          )
-          .map(toClientTrack),
-      );
+      setTracks(toTracks(res.items));
       setError(null);
       setPartialWarning(undefined);
       lastFetchedQueryRef.current = q;
@@ -62,8 +79,17 @@ export function useSearchTracks(
   }, []);
 
   useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (trimmed.length < 2) {
       latestRequestIdRef.current += 1;
+      abortRef.current?.abort();
+      abortRef.current = null;
       setTracks([]);
       setHasLoaded(false);
       setLoading(false);

@@ -12,6 +12,7 @@ import {
 } from "./auth-session";
 import { signApiRequest, syncServerTime } from "./requestSigner";
 import { clientCatalog } from "./clientCatalog";
+import type { SoundCloudSearchOptions } from "./catalogSearch";
 import { getLocalImportHandler } from "./localImports";
 import type { Track } from "@/shared/contracts";
 import { telemetry } from "@/shared/telemetry";
@@ -856,10 +857,17 @@ export const api = {
     const params = new URLSearchParams({ period, limit: String(limit) });
     return request<LeaderboardResponse>(`/v1/leaderboards/global?${params}`);
   },
-  search(q: string, type: SearchType = "all"): Promise<SearchResponse> {
+  search(
+    q: string,
+    type: SearchType = "all",
+    options: SoundCloudSearchOptions = {},
+  ): Promise<SearchResponse> {
     const params = new URLSearchParams({ q, type });
-    return clientCatalog.search(q, type, () =>
-      request<SearchResponse>(`/v1/catalog/search?${params}`),
+    return clientCatalog.search(
+      q,
+      type,
+      () => request<SearchResponse>(`/v1/catalog/search?${params}`),
+      options,
     );
   },
 

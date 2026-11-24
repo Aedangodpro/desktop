@@ -7,7 +7,10 @@ import {
 } from "@/shared/media/soundcloud";
 import { isAbortError } from "@/shared/utils/abort";
 import { log } from "@/shared/utils/logger";
-import { withSoundCloudTracks } from "./catalogSearch";
+import {
+  withSoundCloudTracks,
+  type SoundCloudSearchOptions,
+} from "./catalogSearch";
 import type {
   AlbumDetails,
   ArtistDetails,
@@ -78,6 +81,7 @@ export const clientCatalog = {
     query: string,
     type: SearchType,
     server: () => Promise<SearchResponse>,
+    options: SoundCloudSearchOptions = {},
   ): Promise<SearchResponse> {
     if (isSoundCloudUrl(query))
       return { items: await resolveSoundCloudUrl(query, type).catch(() => []) };
@@ -89,6 +93,7 @@ export const clientCatalog = {
         async () => ({ items: await innertubeCatalog.search(query, type) }),
         server,
       ),
+      options,
     );
   },
 

@@ -26,13 +26,30 @@ export function useSearchAll(
 
   const latestRequestIdRef = useRef(0);
   const lastFetchedQueryRef = useRef("");
+  // the lookup for the newest query; the previous one is aborted, so a stale
+  // SoundCloud search stops using the relay the moment the query changes
+  const abortRef = useRef<AbortController | null>(null);
   const trimmed = query.trim();
   const shouldRunSearch = options.enabled && trimmed.length >= 2;
 
   const runRequest = useCallback(async (requestId: number, q: string) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     try {
-      const res = await api.search(q, "all");
+      const res = await api.search(q, "all", {
+        signal: controller.signal,
+        // the catalog answer paints right away; the SoundCloud merge follows
+        onPrimary: (primary) => {
+          if (requestId !== latestRequestIdRef.current) return;
+          setItems(primary);
+          setPartialWarning(undefined);
+          lastFetchedQueryRef.current = q;
+          setHasLoaded(true);
+          setLoading(false);
+        },
+      });
       if (requestId !== latestRequestIdRef.current) return;
       setItems(res.items);
       setPartialWarning(undefined);
@@ -49,8 +66,17 @@ export function useSearchAll(
   }, []);
 
   useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (trimmed.length < 2) {
       latestRequestIdRef.current += 1;
+      abortRef.current?.abort();
+      abortRef.current = null;
       setItems([]);
       setHasLoaded(false);
       setLoading(false);
