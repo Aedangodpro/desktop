@@ -44,6 +44,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     try {
       const getMePromise = api.getMe();
+      // the timeout can win the race; a later rejection from the abandoned
+      // request must not surface as an unhandled rejection
+      getMePromise.catch(() => undefined);
       const timeoutPromise = new Promise<null>((_, reject) =>
         setTimeout(() => reject(new Error("Auth initialize timeout")), 6000),
       );

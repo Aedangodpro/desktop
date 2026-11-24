@@ -11,6 +11,8 @@ const DEAD_REFRESH_CODES = new Set([
   "REFRESH_SESSION_EXPIRED",
 ]);
 const REFRESH_ATTEMPTS = 2;
+/** A refresh or logout that never answers must not hold the UI forever. */
+const AUTH_REQUEST_TIMEOUT_MS = 10_000;
 
 type MainAuthBridge = NonNullable<
   NonNullable<Window["linerElectron"]>["authSession"]
@@ -291,17 +293,33 @@ async function refreshHere(current: AuthTokens): Promise<AuthTokens | null> {
   return null;
 }
 
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function postRefresh(refreshToken: string): Promise<Response> {
   const body = JSON.stringify({ refreshToken });
   const signedHeaders = await signApiRequest("POST", "/v1/auth/refresh", body);
-  const response = await fetch(`${getApiBaseUrl()}/v1/auth/refresh`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...signedHeaders,
+  const response = await fetchWithTimeout(
+    `${getApiBaseUrl()}/v1/auth/refresh`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...signedHeaders,
+      },
+      body,
     },
-    body,
-  });
+  );
   const dateHeader = response.headers?.get?.("date");
   if (dateHeader) {
     syncServerTime(dateHeader);
@@ -339,7 +357,7 @@ export async function clearAuthSession(): Promise<void> {
   if (!current?.refreshToken) return;
   const body = JSON.stringify({ refreshToken: current.refreshToken });
   const signedHeaders = await signApiRequest("POST", "/v1/auth/logout", body);
-  const response = await fetch(`${getApiBaseUrl()}/v1/auth/logout`, {
+  const response = await fetchWithTimeout(`${getApiBaseUrl()}/v1/auth/logout`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
