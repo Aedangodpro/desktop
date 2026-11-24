@@ -8,7 +8,12 @@ const getDailyMixes = vi.hoisted(() => vi.fn());
 
 vi.mock("@/shared/api", () => ({
   api: { getDailyMixes },
-  getAuthSession: () => ({ user: { id: session.userId } }),
+  // a session always carries both tokens; the mixes request is skipped without one
+  getAuthSession: () => ({
+    user: { id: session.userId },
+    accessToken: "access-token",
+    refreshToken: "refresh-token",
+  }),
   mediaUrl: (url: string) => url,
   toClientTrack: (track: any) => ({
     id: track.id,

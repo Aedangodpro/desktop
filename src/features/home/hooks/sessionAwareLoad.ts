@@ -18,6 +18,19 @@ export function useSessionOwner(): string {
   return useSyncExternalStore(subscribe, ownerSnapshot, ownerSnapshot);
 }
 
+function signedInSnapshot(): boolean {
+  return Boolean(getAuthSession()?.accessToken);
+}
+
+/**
+ * Whether the app has a session to call per-account endpoints with. Signed-out
+ * visitors have nothing to load from `/v1/me/*`, so those resources stay idle
+ * instead of answering with a 401 on every visit.
+ */
+export function useSessionSignedIn(): boolean {
+  return useSyncExternalStore(subscribe, signedInSnapshot, () => false);
+}
+
 function isRetryable(err: unknown): boolean {
   const status = (err as { status?: unknown } | null)?.status;
   if (typeof status !== "number") return true;

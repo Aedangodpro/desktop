@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { playerEngine, usePlayerStore } from "./playerEngine";
 import { api } from "@/shared/api";
+import { setAuthSession } from "@/shared/api/auth-session";
 import type { Track } from "@/shared/types";
 
 const track = (id: string): Track => ({
@@ -13,8 +14,19 @@ const track = (id: string): Track => ({
 });
 
 describe("playerEngine.stopAndClear", () => {
+  beforeEach(() => {
+    // playback events are only reported for a signed-in account
+    setAuthSession({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      accessTokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      user: { id: "user-a" },
+    });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    setAuthSession(null);
   });
 
   it("forgets the old account's track and queue but keeps player settings", async () => {

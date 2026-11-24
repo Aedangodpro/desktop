@@ -9,7 +9,12 @@ vi.mock("@/shared/api", () => ({
   api: {
     getHistory: vi.fn(),
   },
-  getAuthSession: () => null,
+  // history is a per-account endpoint: the hook only asks when signed in
+  getAuthSession: () => ({
+    user: { id: "user-a" },
+    accessToken: "access-token",
+    refreshToken: "refresh-token",
+  }),
   toClientTrack: (track: any) => ({
     id: track.id,
     title: track.title,

@@ -1,6 +1,10 @@
 import { api, toClientTrack } from "@/shared/api";
 import type { PopularItem } from "./usePopularTracks";
-import { loadWithRetry, useSessionOwner } from "./sessionAwareLoad";
+import {
+  loadWithRetry,
+  useSessionOwner,
+  useSessionSignedIn,
+} from "./sessionAwareLoad";
 import { freshFor, useCachedResource } from "@/shared/cache/useCachedResource";
 
 export const recentlyPlayedKeys = {
@@ -66,10 +70,12 @@ async function loadRecentlyPlayed(limit: number): Promise<PopularItem[]> {
 
 export function useRecentlyPlayed(limit = 20) {
   const owner = useSessionOwner();
+  const signedIn = useSessionSignedIn();
   const { data, isLoading } = useCachedResource(
     `home:recent:${owner}:${limit}`,
     () => loadRecentlyPlayed(limit),
-    RECENT_POLICY,
+    // history is per account: a signed-out visit has none and must not ask
+    { ...RECENT_POLICY, enabled: signedIn },
   );
   return { data: data ?? EMPTY_ITEMS, isLoading };
 }

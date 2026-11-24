@@ -315,6 +315,9 @@ class PlaybackTelemetryTracker {
   }
 
   private sendEvent(payload: RecordPlaybackEventRequest): Promise<void> {
+    // Playback events are filed per account. A signed-out session has nobody to
+    // report to, and asking anyway added an unauthorized request per track.
+    if (!getAuthSession()?.accessToken) return Promise.resolve();
     return api.recordPlaybackEvent(payload).then(
       () => undefined,
       (err) => {

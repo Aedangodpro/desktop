@@ -3,7 +3,11 @@ import { api, toClientTrack, mediaUrl } from "@/shared/api";
 import { queryCache } from "@/shared/cache/queryCache";
 import type { Track } from "@/shared/types";
 import type { CollectionPageData } from "@/features/collection/hooks/useCollection";
-import { loadWithRetry, useSessionOwner } from "./sessionAwareLoad";
+import {
+  loadWithRetry,
+  useSessionOwner,
+  useSessionSignedIn,
+} from "./sessionAwareLoad";
 import { freshFor, useCachedResource } from "@/shared/cache/useCachedResource";
 
 export interface DailyMix {
@@ -119,6 +123,7 @@ const DAILY_MIXES_POLICY = {
 
 export function useDailyMixes() {
   const owner = useSessionOwner();
+  const signedIn = useSessionSignedIn();
   const { data, isLoading } = useCachedResource(
     dailyMixesCacheKey(owner),
     () =>
@@ -126,7 +131,8 @@ export function useDailyMixes() {
         () => api.getDailyMixes(),
         () => true,
       ).then((res) => toDailyMixes(res.items)),
-    DAILY_MIXES_POLICY,
+    // mixes are generated per account: without one there is nothing to ask for
+    { ...DAILY_MIXES_POLICY, enabled: signedIn },
   );
 
   useEffect(() => {

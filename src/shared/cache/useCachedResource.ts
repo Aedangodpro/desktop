@@ -12,6 +12,13 @@ export interface CachePolicy {
   maxAgeMs?: number;
   revalidateOnFocus?: boolean;
   sessionOnly?: boolean;
+  /**
+   * False keeps the resource from requesting anything. Per-account endpoints
+   * are useless without a session: loading them anyway is what sent signed-out
+   * visitors to `/v1/me/history` and `/v1/me/recommendations` and collected a
+   * 401 for every visit.
+   */
+  enabled?: boolean;
 }
 
 export function freshFor(ms: number): (savedAt: number) => boolean {
@@ -88,6 +95,7 @@ export function useCachedResource<T>(
   const failed = useSyncExternalStore(subscribe, () => failedKeys.has(key));
 
   useEffect(() => {
+    if (policyRef.current.enabled === false) return;
     const check = () => {
       const { isFresh, sessionOnly } = policyRef.current;
       const current = readScreenCache(key);
@@ -102,7 +110,7 @@ export function useCachedResource<T>(
     if (!policyRef.current.revalidateOnFocus) return;
     window.addEventListener("focus", check);
     return () => window.removeEventListener("focus", check);
-  }, [key]);
+  }, [key, policy.enabled]);
 
   const usable =
     entry &&
@@ -110,5 +118,9 @@ export function useCachedResource<T>(
     (!policy.maxAgeMs || Date.now() - entry.savedAt <= policy.maxAgeMs)
       ? entry
       : undefined;
-  return { data: usable?.data, isLoading: !usable && !failed };
+  const enabled = policy.enabled ?? true;
+  return {
+    data: usable?.data,
+    isLoading: enabled ? !usable && !failed : false,
+  };
 }
