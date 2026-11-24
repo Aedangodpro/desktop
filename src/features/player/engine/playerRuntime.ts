@@ -821,7 +821,10 @@ export class PlayerRuntime {
     const generation = audioCache.currentGeneration();
     const promise = (async () => {
       try {
-        const stream = await resolvePlaybackStream(track, controller.signal);
+        // a speculative preload must not blacklist the track for a real play
+        const stream = await resolvePlaybackStream(track, controller.signal, {
+          recordFailure: false,
+        });
         if (controller.signal.aborted) return;
 
         const blob = await this.downloadAudioBlob(stream, controller.signal);

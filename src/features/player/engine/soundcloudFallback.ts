@@ -1,6 +1,7 @@
 import {
   searchSoundCloudTracks,
   SOUNDCLOUD_DEEP_SEARCH_LIMIT,
+  type SoundCloudSearchHit,
 } from "@/shared/media/soundcloud";
 import { rethrowIfAborted } from "@/shared/utils/abort";
 import { log } from "@/shared/utils/logger";
@@ -30,6 +31,20 @@ import type { PlayableTrack } from "./playbackStream";
  */
 const MAX_CANDIDATES = 3;
 
+/**
+ * A deep search is 50 hits per query, two queries, and the payload is mapped
+ * and matched on the main thread. Most tracks have a playable upload in the
+ * first page, so the first pass asks for 20 and only the case that found
+ * nothing pays for the deeper one.
+ */
+const SOUNDCLOUD_FIRST_PASS_LIMIT = 20;
+
+/** Hard ceiling on candidates matched, so a pathological result set stays bounded. */
+const MAX_EVALUATED_CANDIDATES = 80;
+
+/** Rejections are logged to explain a wrong pick, not to print a novel. */
+const MAX_REJECTION_LOGS = 10;
+
 function searchQueries(track: PlayableTrack): string[] {
   const title = track.title.trim();
   const artist = track.artists.split(",")[0]?.trim() ?? "";
@@ -42,45 +57,57 @@ function searchQueries(track: PlayableTrack): string[] {
   ];
 }
 
+interface FoundUpload {
+  id: string;
+  rank: number;
+  extraWords: number;
+  ownArtist: boolean;
+}
+
+interface SearchResultSet {
+  batches: SoundCloudSearchHit[][];
+  error: unknown;
+}
+
 /**
- * SoundCloud uploads of the same recording, closest length first.
- *
  * Both queries go out together: each is one relayed request, and running them
  * in sequence doubled the time this fallback needed to even start. Failures are
- * logged rather than swallowed — a silent empty result here is what made a
+ * kept rather than swallowed — a silent empty result here is what made a
  * refused YouTube track look like it never tried another catalog at all.
  */
-export async function findSoundCloudUploads(
-  track: PlayableTrack,
+async function searchBoth(
+  queries: readonly string[],
+  limit: number,
   signal?: AbortSignal,
-): Promise<string[]> {
-  const queries = searchQueries(track);
-  if (queries.length === 0) return [];
-
-  let lastError: unknown = null;
+): Promise<SearchResultSet> {
+  let error: unknown = null;
   const batches = await Promise.all(
     queries.map((query) =>
-      searchSoundCloudTracks(query, signal, SOUNDCLOUD_DEEP_SEARCH_LIMIT).catch(
-        (error) => {
-          rethrowIfAborted(signal);
-          lastError = error;
-          return [];
-        },
-      ),
+      searchSoundCloudTracks(query, signal, limit).catch((failure) => {
+        rethrowIfAborted(signal);
+        error = failure;
+        return [];
+      }),
     ),
   );
+  return { batches, error };
+}
 
+function evaluate(
+  track: PlayableTrack,
+  batches: readonly SoundCloudSearchHit[][],
+): FoundUpload[] {
   const seen = new Set<string>();
-  const found: Array<{
-    id: string;
-    rank: number;
-    extraWords: number;
-    ownArtist: boolean;
-  }> = [];
+  const found: FoundUpload[] = [];
+  let evaluated = 0;
+  let rejected = 0;
+  let logged = 0;
   for (const hits of batches) {
     for (const hit of hits) {
       if (seen.has(hit.track.id)) continue;
       seen.add(hit.track.id);
+      if (evaluated >= MAX_EVALUATED_CANDIDATES) break;
+      evaluated += 1;
       const verdict = explainRecordingMatch(track, {
         title: hit.track.title,
         artists: hit.track.artists.map((entry) => entry.name),
@@ -93,14 +120,19 @@ export async function findSoundCloudUploads(
       });
       const match = verdict.match;
       if (match === null) {
-        // every rejection, with the rule that made it: the next wrong-song
-        // report can name the upload that was picked *and* what the rules
-        // threw away for being closer.
-        log(
-          "gray",
-          "playback",
-          `soundcloud rejected "${hit.track.title}" by ${hit.uploader} for "${track.title}": ${verdict.reason}${verdict.detail ? ` (${verdict.detail})` : ""}`,
-        );
+        rejected += 1;
+        // Every rejection names the rule that made it, up to a limit: the next
+        // wrong-song report can name the upload that was picked *and* what the
+        // rules threw away for being closer, without a block of console output
+        // per search.
+        if (logged < MAX_REJECTION_LOGS) {
+          logged += 1;
+          log(
+            "gray",
+            "playback",
+            `soundcloud rejected "${hit.track.title}" by ${hit.uploader} for "${track.title}": ${verdict.reason}${verdict.detail ? ` (${verdict.detail})` : ""}`,
+          );
+        }
         continue;
       }
       found.push({
@@ -110,6 +142,42 @@ export async function findSoundCloudUploads(
         ownArtist: match.ownArtist,
       });
     }
+  }
+  if (rejected > logged) {
+    log(
+      "gray",
+      "playback",
+      `soundcloud rejected ${rejected - logged} more uploads for "${track.title}"`,
+    );
+  }
+  return found;
+}
+
+/**
+ * SoundCloud uploads of the same recording, closest length first.
+ */
+export async function findSoundCloudUploads(
+  track: PlayableTrack,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const queries = searchQueries(track);
+  if (queries.length === 0) return [];
+
+  const first = await searchBoth(queries, SOUNDCLOUD_FIRST_PASS_LIMIT, signal);
+  let found = evaluate(track, first.batches);
+  let batches = first.batches;
+  let lastError = first.error;
+
+  if (found.length === 0 && !signal?.aborted) {
+    const deep = await searchBoth(
+      queries,
+      SOUNDCLOUD_DEEP_SEARCH_LIMIT,
+      signal,
+    );
+    const deepFound = evaluate(track, deep.batches);
+    batches = deep.batches;
+    lastError = deep.error ?? lastError;
+    if (deepFound.length > 0) found = deepFound;
   }
 
   if (found.length === 0) {
@@ -140,3 +208,5 @@ export async function findSoundCloudUploads(
     .slice(0, MAX_CANDIDATES)
     .map((entry) => entry.id);
 }
+
+export { SOUNDCLOUD_FIRST_PASS_LIMIT, MAX_EVALUATED_CANDIDATES };

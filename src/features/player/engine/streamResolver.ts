@@ -42,6 +42,53 @@ import { mediaProxyUrl } from "@/web/proxyUrls";
 
 export interface ResolveStreamOptions {
   progressive?: boolean;
+  /**
+   * Whether a failed chain is remembered briefly (default true). A preload is
+   * speculative and its failure says nothing about a later, deliberate play.
+   */
+  recordFailure?: boolean;
+}
+
+/**
+ * How long a track's failed resolution is remembered.
+ *
+ * A refused track used to walk the whole chain again on every attempt: the
+ * catalog search, both catalog search queries, a SoundCloud search of each, and
+ * up to six stream resolutions. That is what made one unplayable track look
+ * like a fallback storm in the console — and it happened again on every retry,
+ * every skip back, and on the runtime's own recovery reload.
+ */
+const FAILURE_MEMO_MS = 45_000;
+const FAILURE_MEMO_LIMIT = 64;
+
+const recentFailures = new Map<string, { at: number; error: Error }>();
+
+/** exported for tests and for a deliberate retry after the cause changes */
+export function resetPlaybackFailureMemo(trackId?: string): void {
+  if (trackId) recentFailures.delete(trackId);
+  else recentFailures.clear();
+}
+
+function rememberedFailure(trackId: string): Error | null {
+  const entry = recentFailures.get(trackId);
+  if (!entry) return null;
+  if (Date.now() - entry.at > FAILURE_MEMO_MS) {
+    recentFailures.delete(trackId);
+    return null;
+  }
+  return entry.error;
+}
+
+function rememberFailure(trackId: string, error: unknown): void {
+  const memo = error instanceof Error ? error : new Error(String(error));
+  if (
+    !recentFailures.has(trackId) &&
+    recentFailures.size >= FAILURE_MEMO_LIMIT
+  ) {
+    const oldest = recentFailures.keys().next();
+    if (!oldest.done) recentFailures.delete(oldest.value);
+  }
+  recentFailures.set(trackId, { at: Date.now(), error: memo });
 }
 
 export type {
@@ -235,10 +282,19 @@ async function resolveYoutubeVideoWithStandIn(
     const forwardAbort = () => soundCloudController.abort(signal?.reason);
     if (signal?.aborted) forwardAbort();
     else signal?.addEventListener("abort", forwardAbort, { once: true });
-    const soundCloudSearch = findSoundCloudUploads(
-      track,
-      soundCloudController.signal,
-    ).catch(() => [] as string[]);
+    let soundCloudLookup: Promise<string[]> | null = null;
+    const findSoundCloud = () => {
+      soundCloudLookup ??= findSoundCloudUploads(
+        track,
+        soundCloudController.signal,
+      ).catch(() => [] as string[]);
+      return soundCloudLookup;
+    };
+    // When every client was refused the other catalog is the only source that
+    // can answer, so it is asked alongside the YouTube probes. Otherwise the
+    // re-uploads are tried first: asking SoundCloud eagerly cost two deep
+    // searches (and their payloads) for a track a re-upload plays fine.
+    if (everyClientRefused) void findSoundCloud();
     try {
       if (!everyClientRefused) {
         const replacements = await findPlaybackReplacements(
@@ -268,7 +324,7 @@ async function resolveYoutubeVideoWithStandIn(
       }
       const soundCloud = await playSoundCloudUploads(
         track,
-        await soundCloudSearch,
+        await findSoundCloud(),
         signal,
       );
       if (soundCloud) return soundCloud;
@@ -318,9 +374,30 @@ export async function resolvePlaybackStream(
   signal?: AbortSignal,
   options: ResolveStreamOptions = {},
 ): Promise<PlaybackStream> {
-  const stream = withWebMediaProxy(await resolveStream(track, signal, options));
-  rememberStreamOrigin(track.id, stream);
-  return stream;
+  const remembers = options.recordFailure !== false;
+  if (remembers) {
+    const failed = rememberedFailure(track.id);
+    if (failed) {
+      log(
+        "yellow",
+        "playback",
+        `"${track.title}" failed moments ago, not walking the chain again: ${failed.message}`,
+      );
+      throw failed;
+    }
+  }
+  try {
+    const stream = withWebMediaProxy(
+      await resolveStream(track, signal, options),
+    );
+    recentFailures.delete(track.id);
+    rememberStreamOrigin(track.id, stream);
+    return stream;
+  } catch (error) {
+    if (remembers && !isAbortError(error, signal))
+      rememberFailure(track.id, error);
+    throw error;
+  }
 }
 
 async function resolveStream(

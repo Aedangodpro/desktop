@@ -30,7 +30,10 @@ vi.mock("@/shared/media/soundcloud", async (importOriginal) => {
 
 import { SoundCloudUnavailableError } from "@/shared/media/soundcloud";
 import { STREAMS_REFUSED_MESSAGE } from "@/shared/youtube";
-import { resolvePlaybackStream } from "./streamResolver";
+import {
+  resetPlaybackFailureMemo,
+  resolvePlaybackStream,
+} from "./streamResolver";
 import { clearYoutubeStandInCache } from "./youtubeStandIn";
 
 const directStream = {
@@ -92,6 +95,7 @@ afterEach(() => {
   mocks.resolveSoundCloudStream.mockReset();
   mocks.searchSoundCloudTracks.mockReset();
   clearYoutubeStandInCache();
+  resetPlaybackFailureMemo();
 });
 
 describe("resolvePlaybackStream for soundcloud ids", () => {
@@ -190,7 +194,11 @@ describe("resolvePlaybackStream for soundcloud ids", () => {
     );
     mocks.searchRaw.mockResolvedValue([]);
     mocks.searchSoundCloudTracks.mockResolvedValue([
-      soundCloudHit("sc:102180160", "Astronaut - Apollo (Electro Mix)", 262_000),
+      soundCloudHit(
+        "sc:102180160",
+        "Astronaut - Apollo (Electro Mix)",
+        262_000,
+      ),
       soundCloudHit("sc:102180256", "Astronaut - Apollo (Radio Edit)", 186_000),
     ]);
     mocks.resolveSoundCloudStream.mockResolvedValue({
@@ -245,7 +253,10 @@ describe("resolvePlaybackStream for soundcloud ids", () => {
     expect(stream).toMatchObject({ source: "soundcloud", standIn: true });
   });
 
-  it("stops the unused soundcloud search when a youtube replacement plays", async () => {
+  it("does not search soundcloud at all when a youtube replacement plays", async () => {
+    // the other catalog is only asked up front when every client was refused;
+    // a refused video with a playable re-upload used to pay for two deep
+    // soundcloud searches it never read
     mocks.resolveDirectAudioStream
       .mockRejectedValueOnce(
         new Error("This track cannot be played in this browser right now."),
@@ -254,26 +265,13 @@ describe("resolvePlaybackStream for soundcloud ids", () => {
     mocks.searchRaw.mockResolvedValue([
       searchTrack("repl0000001", "Apollo (Radio Edit)", "Astronaut", 186_000),
     ]);
-    let searchSignal: AbortSignal | undefined;
-    mocks.searchSoundCloudTracks.mockImplementation(
-      (_query: string, signal: AbortSignal) => {
-        searchSignal = signal;
-        return new Promise((_resolve, reject) => {
-          signal.addEventListener(
-            "abort",
-            () => reject(new DOMException("aborted", "AbortError")),
-            { once: true },
-          );
-        });
-      },
-    );
 
     const stream = await resolvePlaybackStream(
       track("BKVyNI7f9zc", "Apollo (Radio Edit)", "Astronaut", 186_000),
     );
 
     expect(stream).toMatchObject({ standIn: true });
-    expect(searchSignal?.aborted).toBe(true);
+    expect(mocks.searchSoundCloudTracks).not.toHaveBeenCalled();
   });
 
   it("reports the youtube refusal when soundcloud has no matching upload", async () => {

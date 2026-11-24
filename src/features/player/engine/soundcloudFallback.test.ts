@@ -23,7 +23,11 @@ function hit(
   title: string,
   artist: string,
   durationMs: number,
-  extra: { uploader?: string; publisherArtist?: string; uploaderVerified?: boolean } = {},
+  extra: {
+    uploader?: string;
+    publisherArtist?: string;
+    uploaderVerified?: boolean;
+  } = {},
 ) {
   return {
     track: {
@@ -35,7 +39,9 @@ function hit(
     },
     uploader: extra.uploader ?? artist ?? "Some Channel",
     uploaderVerified: extra.uploaderVerified ?? false,
-    ...(extra.publisherArtist ? { publisherArtist: extra.publisherArtist } : {}),
+    ...(extra.publisherArtist
+      ? { publisherArtist: extra.publisherArtist }
+      : {}),
     plays: 0,
   };
 }
@@ -60,7 +66,12 @@ describe("findSoundCloudUploads", () => {
   it("never swaps in a tribute or karaoke upload", async () => {
     mocks.searchSoundCloudTracks.mockResolvedValue([
       hit("sc:3", "Apollo (Radio Edit)", "Absolute Astronaut Tribute", 186_000),
-      hit("sc:4", "Apollo (Radio Edit) (Karaoke Version)", "Sing King", 186_000),
+      hit(
+        "sc:4",
+        "Apollo (Radio Edit) (Karaoke Version)",
+        "Sing King",
+        186_000,
+      ),
     ]);
 
     await expect(findSoundCloudUploads(apollo)).resolves.toEqual([]);
@@ -74,10 +85,16 @@ describe("findSoundCloudUploads", () => {
       durationMs: 224_000,
     };
     mocks.searchSoundCloudTracks.mockResolvedValue([
-      hit("sc:6", "Loser - Tame Impala (The Arabic Version/Rendition)", "YAD Oud", 226_000, {
-        uploader: "YAD Oud",
-        publisherArtist: "YAD Oud",
-      }),
+      hit(
+        "sc:6",
+        "Loser - Tame Impala (The Arabic Version/Rendition)",
+        "YAD Oud",
+        226_000,
+        {
+          uploader: "YAD Oud",
+          publisherArtist: "YAD Oud",
+        },
+      ),
       hit("sc:7", "Loser", "Hello Adele", 224_000, { uploader: "Hello Adele" }),
     ]);
 
@@ -123,12 +140,14 @@ describe("findSoundCloudUploads", () => {
     }
 
     const output = lines.join("\n");
-    expect(output).toContain("Astronaut - Apollo (Radio Edit) (Karaoke Version)");
+    expect(output).toContain(
+      "Astronaut - Apollo (Radio Edit) (Karaoke Version)",
+    );
     expect(output).toContain("by Sing King");
     expect(output).toContain("version (karaoke)");
   });
 
-  it("asks both queries at once, with the deeper result limit", async () => {
+  it("asks both queries at once, with the first page's limit", async () => {
     mocks.searchSoundCloudTracks.mockResolvedValue([
       hit("sc:5", "Astronaut - Apollo (Radio Edit)", "Astronaut", 186_000),
     ]);
@@ -137,7 +156,30 @@ describe("findSoundCloudUploads", () => {
 
     expect(mocks.searchSoundCloudTracks).toHaveBeenCalledTimes(2);
     for (const call of mocks.searchSoundCloudTracks.mock.calls)
-      expect(call[2]).toBe(50);
+      expect(call[2]).toBe(20);
+  });
+
+  it("deepens the search only when the first page had no match", async () => {
+    mocks.searchSoundCloudTracks.mockImplementation(
+      async (_query: string, _signal?: AbortSignal, limit?: number) =>
+        limit === 50
+          ? [
+              hit(
+                "sc:9",
+                "Astronaut - Apollo (Radio Edit)",
+                "Astronaut",
+                186_400,
+              ),
+            ]
+          : [],
+    );
+
+    await expect(findSoundCloudUploads(apollo)).resolves.toEqual(["sc:9"]);
+
+    const limits = mocks.searchSoundCloudTracks.mock.calls.map(
+      (call) => call[2],
+    );
+    expect(limits).toEqual([20, 20, 50, 50]);
   });
 
   it("returns nothing when the searches fail, instead of throwing", async () => {

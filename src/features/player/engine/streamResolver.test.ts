@@ -23,7 +23,10 @@ vi.mock("@/shared/media/soundcloud", async (importOriginal) => {
   return { ...actual, resolveSoundCloudStream: mocks.resolveSoundCloudStream };
 });
 
-import { resolvePlaybackStream } from "./streamResolver";
+import {
+  resetPlaybackFailureMemo,
+  resolvePlaybackStream,
+} from "./streamResolver";
 import { clearYoutubeStandInCache } from "./youtubeStandIn";
 import { clearExactSongVersions } from "./exactSongVersion";
 
@@ -66,6 +69,9 @@ afterEach(() => {
   mocks.searchRaw.mockReset();
   mocks.resolveSoundCloudStream.mockReset();
   clearYoutubeStandInCache();
+  // a failed resolution is remembered for a short while, which is shared module
+  // state: each test starts with a clean memo
+  resetPlaybackFailureMemo();
 });
 
 describe("resolvePlaybackStream for youtube ids", () => {
