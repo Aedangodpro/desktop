@@ -683,7 +683,7 @@ function MiniPlayer({
           const onUp = (ev: PointerEvent) => {
             const finalRatio = calcRatio(ev.clientX);
             setScrubRatio(null);
-            playerEngine.seek(finalRatio * durationMs);
+            playerEngine.seek(finalRatio * durationMs, false, { fast: true });
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
             window.removeEventListener("pointercancel", onUp);
@@ -722,7 +722,7 @@ function MiniPlayer({
             <TimelineSlider
               positionMs={player.positionMs}
               durationMs={durationMs}
-              onSeek={(pos) => playerEngine.seek(pos)}
+              onSeek={(pos) => playerEngine.seek(pos, false, { fast: true })}
               size="xs"
               fillColor={accentColorSolid || undefined}
               fillClassName={

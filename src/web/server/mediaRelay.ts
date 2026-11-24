@@ -106,10 +106,44 @@ export const UPSTREAM_CHUNK_BYTES = 256 * 1024;
 const ANY_RANGE = /^bytes=(\d+)-(\d*)$/;
 const CONTENT_RANGE_TOTAL = /^bytes \d+-\d+\/(\d+)$/i;
 
+/**
+ * A signed media URL always points at the same object, so its total size is
+ * stable for the life of the URL. Remembering it turns every range after the
+ * first one (a seek, or the next buffer window) from two upstream requests into
+ * one. The key includes the signature, so a rotated URL simply misses.
+ */
+const TOTAL_CACHE_TTL_MS = 10 * 60_000;
+const TOTAL_CACHE_LIMIT = 64;
+const totalCache = new Map<string, { total: number; at: number }>();
+
+/** Testing/diagnostics hook; production never needs to clear it. */
+export function clearMediaRelayTotalCache(): void {
+  totalCache.clear();
+}
+
+function rememberTotal(key: string, total: number): void {
+  totalCache.delete(key);
+  totalCache.set(key, { total, at: Date.now() });
+  while (totalCache.size > TOTAL_CACHE_LIMIT) {
+    const oldest = totalCache.keys().next().value;
+    if (oldest === undefined) break;
+    totalCache.delete(oldest);
+  }
+}
+
 async function contentTotal(
   target: URL,
   offset: number,
 ): Promise<number | null> {
+  const key = target.toString();
+  const cached = totalCache.get(key);
+  if (cached && Date.now() - cached.at < TOTAL_CACHE_TTL_MS) {
+    // refresh insertion order so the limit evicts the least recently used URL
+    totalCache.delete(key);
+    totalCache.set(key, cached);
+    return cached.total;
+  }
+
   try {
     const probe = await fetch(target, {
       headers: {
@@ -121,7 +155,10 @@ async function contentTotal(
     const total = CONTENT_RANGE_TOTAL.exec(
       probe.headers.get("content-range") ?? "",
     )?.[1];
-    return total ? Number(total) : null;
+    if (!total) return null;
+    const size = Number(total);
+    rememberTotal(key, size);
+    return size;
   } catch {
     return null;
   }

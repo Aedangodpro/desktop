@@ -1,7 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMediaRelay } from "./mediaRelay";
+import { clearMediaRelayTotalCache, createMediaRelay } from "./mediaRelay";
 
 interface MockResponse {
   res: ServerResponse;
@@ -65,6 +65,8 @@ const fetchMock = vi.fn();
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
+  // the total cache is module-wide and a loopback-free test target is reused
+  clearMediaRelayTotalCache();
 });
 
 afterEach(() => {
@@ -190,6 +192,79 @@ describe("media relay", () => {
     await response.finished;
 
     expect(fetchMock.mock.calls[1]![1].headers.range).toBe("bytes=0-98");
+  });
+
+  it("probes a media url once and reuses its total for later ranges", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([0]), {
+          status: 206,
+          headers: { "content-range": "bytes 0-0/5000" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1]), {
+          status: 206,
+          headers: { "content-type": "audio/webm" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([2]), {
+          status: 206,
+          headers: { "content-type": "audio/webm" },
+        }),
+      );
+    const target =
+      "https://rr1---sn-abc.googlevideo.com/videoplayback?id=cache";
+    const handle = createMediaRelay();
+
+    const first = mockResponse();
+    await handle(
+      mockRequest(`/__media?url=${encodeURIComponent(target)}`, {
+        headers: { range: "bytes=0-" },
+      }),
+      first.res,
+    );
+    await first.finished;
+
+    const second = mockResponse();
+    await handle(
+      mockRequest(`/__media?url=${encodeURIComponent(target)}`, {
+        headers: { range: "bytes=1000-" },
+      }),
+      second.res,
+    );
+    await second.finished;
+
+    // probe + first range + second range, with no second probe
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2]![1].headers.range).toBe("bytes=1000-4998");
+  });
+
+  it("probes again once the cached total is cleared", async () => {
+    const probe = () =>
+      new Response(new Uint8Array([0]), {
+        status: 206,
+        headers: { "content-range": "bytes 0-0/5000" },
+      });
+    fetchMock.mockImplementation(async () => probe());
+    const target =
+      "https://rr1---sn-abc.googlevideo.com/videoplayback?id=cache2";
+    const handle = createMediaRelay();
+
+    for (let i = 0; i < 2; i++) {
+      const response = mockResponse();
+      await handle(
+        mockRequest(`/__media?url=${encodeURIComponent(target)}`, {
+          headers: { range: "bytes=0-100" },
+        }),
+        response.res,
+      );
+      await response.finished;
+      clearMediaRelayTotalCache();
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("forwards an explicit start/end window from the chunked downloader", async () => {
@@ -324,13 +399,15 @@ describe("media relay", () => {
       interpreter.res,
     );
     await interpreter.finished;
-    expect(fetchMock.mock.calls[0]![0]).toBe("https://www.google.com/js/bg/abc.js");
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "https://www.google.com/js/bg/abc.js",
+    );
 
     const integrity = mockResponse();
     await handle(
       mockRequest(
         "/__yt/jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa/GenerateIT",
-        { method: "POST", body: "[\"key\",\"response\"]" },
+        { method: "POST", body: '["key","response"]' },
       ),
       integrity.res,
     );

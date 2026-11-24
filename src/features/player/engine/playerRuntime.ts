@@ -12,6 +12,7 @@ import { isSavedTrack } from "@/shared/media/saved";
 import { pitchShifter } from "./pitchShifter";
 import { FLAT_EQ, isEqActive } from "./equalizer";
 import { resolvePlaybackStream, type PlaybackStream } from "./streamResolver";
+import { applyMediaSeek, type MediaSeekOptions } from "./seek";
 import { logNowPlaying } from "./nowPlayingLog";
 import {
   downloadAudioBytes,
@@ -870,9 +871,10 @@ export class PlayerRuntime {
     this.pendingStartPositionMs = positionMs;
     usePlayerStore.getState().setPosition(positionMs);
     if (!this.audio.src || this.audio.src === window.location.href) return;
+    const durationMs = usePlayerStore.getState().durationMs;
     try {
       if (this.audio.readyState >= 1) {
-        this.audio.currentTime = positionMs / 1000;
+        applyMediaSeek(this.audio, positionMs, durationMs);
         return;
       }
       // The listener belongs to the load that is running now. Without this
@@ -886,9 +888,7 @@ export class PlayerRuntime {
         () => {
           if (this.currentTrackId !== trackId || this.loadEpoch !== epoch)
             return;
-          try {
-            this.audio.currentTime = positionMs / 1000;
-          } catch {}
+          applyMediaSeek(this.audio, positionMs, durationMs);
         },
         { once: true },
       );
@@ -1229,13 +1229,10 @@ export class PlayerRuntime {
 
   private seekWhenReady(epoch: number, positionMs: number) {
     if (positionMs <= 0) return;
+    const durationMs = usePlayerStore.getState().durationMs;
     const apply = () => {
       if (epoch !== this.loadEpoch) return;
-      try {
-        this.audio.currentTime = positionMs / 1000;
-      } catch {
-        // Media not seekable yet — ignore
-      }
+      applyMediaSeek(this.audio, positionMs, durationMs);
     };
     if (this.audio.readyState >= 1) {
       apply();
@@ -1264,7 +1261,10 @@ export class PlayerRuntime {
     // was already resolving, so pressing play made the wait start over. The
     // load owns playback until it settles or times out.
     const pendingTrack = usePlayerStore.getState().currentTrack;
-    if (pendingTrack && this.isLoadInFlightFor(pendingTrack.id)) {
+    // nothing selected: play() on an empty element only produces a rejected
+    // promise and a "playing" state with no audio
+    if (!pendingTrack) return;
+    if (this.isLoadInFlightFor(pendingTrack.id)) {
       log("cyan", "audio", "resume ignored — the track is already loading");
       return;
     }
@@ -1336,22 +1336,27 @@ export class PlayerRuntime {
     }
   }
 
-  public seek(positionMs: number) {
+  public seek(positionMs: number, options: MediaSeekOptions = {}) {
     if (!this.audio.src || this.audio.src === window.location.href) return;
+    const durationMs = usePlayerStore.getState().durationMs;
     try {
       if (this.audio.readyState >= 1) {
-        this.audio.currentTime = positionMs / 1000;
-      } else {
-        this.audio.addEventListener(
-          "loadedmetadata",
-          () => {
-            try {
-              this.audio.currentTime = positionMs / 1000;
-            } catch {}
-          },
-          { once: true },
-        );
+        applyMediaSeek(this.audio, positionMs, durationMs, options);
+        return;
       }
+      // A drag made before this track's metadata arrived must not land on the
+      // next track's timeline. Only the track is checked: the load epoch also
+      // changes on pause/resume, and a seek made while paused before metadata
+      // should survive the resume.
+      const trackId = this.currentTrackId;
+      this.audio.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (this.currentTrackId !== trackId) return;
+          applyMediaSeek(this.audio, positionMs, durationMs, options);
+        },
+        { once: true },
+      );
     } catch {
       // Ignore seek error if media not yet ready
     }

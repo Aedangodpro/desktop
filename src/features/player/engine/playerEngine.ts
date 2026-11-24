@@ -6,6 +6,7 @@ import {
   type PlayerState,
 } from "../store/playerStore";
 import { playerRuntime } from "./playerRuntime";
+import type { MediaSeekOptions } from "./seek";
 import { isRadioContext, shouldRefillRadio } from "./radioMode";
 import { pitchShifter } from "./pitchShifter";
 import { EQ_MAX_CUSTOM_PRESETS, EQ_PRESET_NAME_MAX } from "./equalizer";
@@ -696,12 +697,12 @@ class PlayerEngine {
 
   public resume(): void {
     const store = usePlayerStore.getState();
+    // nothing selected: a resume used to flip the UI to "playing" and call
+    // play() on an empty element, which left a playing state with no audio
+    if (!store.currentTrack) return;
     // the load is already resolving: restarting it here aborted the stream and
     // made a slow start look like a dead play button
-    if (
-      store.currentTrack &&
-      playerRuntime?.isLoadInFlightFor(store.currentTrack.id)
-    ) {
+    if (playerRuntime?.isLoadInFlightFor(store.currentTrack.id)) {
       return;
     }
     if (playerRuntime) {
@@ -954,7 +955,11 @@ class PlayerEngine {
     }
   }
 
-  public seek(positionMs: number, autoPlay: boolean = false): void {
+  public seek(
+    positionMs: number,
+    autoPlay: boolean = false,
+    options: MediaSeekOptions = {},
+  ): void {
     const store = usePlayerStore.getState();
     const currentMs = store.positionMs;
     const durationMs = store.durationMs || store.currentTrack?.durationMs || 0;
@@ -984,7 +989,7 @@ class PlayerEngine {
         }
         return;
       }
-      playerRuntime.seek(nextMs);
+      playerRuntime.seek(nextMs, options);
       if (autoPlay && store.status !== "playing") {
         this.resume();
       }

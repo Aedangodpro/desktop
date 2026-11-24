@@ -66,8 +66,19 @@ POST /__yt/<host>/<path>?<query>   -> https://<host>/<path>
 Only hosts on the desktop allowlist are reachable (`needsOpenCors`), Innertube
 is limited to `www.youtube.com`, `music.youtube.com` and
 `youtubei.googleapis.com`, page identity headers (`origin`, `referer`, `cookie`)
-are dropped, and the relay is a byte pipe with no cache. It is mounted in
-`dev:web` and `preview:web` next to the API proxy.
+are dropped, and the relay never buffers or re-encodes a media body. It does
+remember one number per signed URL: the content length learned from the first
+`content-range` probe. A range request normally costs a one-byte probe plus the
+real range (googlevideo refuses open-ended or over-long ranges), so every later
+buffer window and seek for the same URL skips the probe and saves an upstream
+round trip. The cache is bounded to 64 URLs for 10 minutes and keyed by the full
+signed URL, so a rotated signature is simply a miss. It is mounted in
+`dev:web`, `preview:web` and the Sites worker next to the API proxy.
+
+Seeking goes through `src/features/player/engine/seek.ts`, which clamps to the
+media bounds (a slider can send negative, past-the-end or `NaN` positions).
+Timeline scrubbing opts into `fastSeek` so it lands on the nearest cue point;
+media-session seeks, resume positions and retry seeks set `currentTime` exactly.
 
 The renderer only rewrites URLs under `--mode web` (`src/web/proxyUrls.ts`), so
 the desktop keeps calling these hosts directly. In the browser, WEB_REMIX and

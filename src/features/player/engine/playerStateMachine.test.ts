@@ -72,6 +72,45 @@ describe("Player State Machine", () => {
     await pending;
   });
 
+  it("does nothing when play is toggled with no track loaded", () => {
+    if (!playerRuntime) return;
+    const loadSpy = vi.spyOn(playerRuntime, "loadAndPlay");
+    playerEngine.togglePlayPause();
+
+    expect(loadSpy).not.toHaveBeenCalled();
+    expect(usePlayerStore.getState().status).toBe("idle");
+    expect(usePlayerStore.getState().currentTrack).toBeNull();
+  });
+
+  it("pauses a pending load and reloads it when play is pressed again", async () => {
+    if (!playerRuntime) return;
+    const track = mockTrack("pause-1", "Pause Me");
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const loadSpy = vi
+      .spyOn(playerRuntime, "loadAndPlay")
+      .mockReturnValue(pending);
+    const cancelSpy = vi
+      .spyOn(playerRuntime, "cancelPendingLoad")
+      .mockImplementation(() => {});
+
+    await playerEngine.playTrack(track, [track]);
+    playerEngine.pause();
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    expect(usePlayerStore.getState().status).toBe("paused");
+
+    playerEngine.togglePlayPause();
+
+    expect(loadSpy).toHaveBeenCalledTimes(2);
+    expect(loadSpy.mock.calls.at(-1)?.[0]).toMatchObject({ id: "pause-1" });
+
+    release();
+    await pending;
+  });
+
   it("handles fast skipping (rapid next clicks) with instantaneous UI transitions", async () => {
     const tracks = Array.from({ length: 10 }, (_, i) =>
       mockTrack(String(i + 1), `Track ${i + 1}`, 200000),

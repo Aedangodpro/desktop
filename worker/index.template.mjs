@@ -309,7 +309,9 @@ async function handleApi(request, url) {
   const pathWithQuery = url.pathname.slice(API_PREFIX.length) + url.search;
   const path = pathWithQuery.split("?")[0] || "/";
   const bodyless = method === "GET" || method === "HEAD";
-  const bytes = bodyless ? new Uint8Array() : new Uint8Array(await request.arrayBuffer());
+  const bytes = bodyless
+    ? new Uint8Array()
+    : new Uint8Array(await request.arrayBuffer());
   const bodyText = bytes.length ? decoder.decode(bytes) : "";
 
   let signed;
@@ -361,7 +363,35 @@ async function handleApi(request, url) {
   return new Response(text, { status: upstream.status, headers: out });
 }
 
+// A signed media URL always points at the same object, so its total size is
+// stable for the life of the URL. Remembering it turns every range after the
+// first one (a seek, or the next buffer window) from two upstream requests into
+// one. The key includes the signature, so a rotated URL simply misses. This is
+// per isolate and bounded; a cold isolate just probes again.
+const TOTAL_CACHE_TTL_MS = 10 * 60_000;
+const TOTAL_CACHE_LIMIT = 64;
+const totalCache = new Map();
+
+function rememberTotal(key, total) {
+  totalCache.delete(key);
+  totalCache.set(key, { total, at: Date.now() });
+  while (totalCache.size > TOTAL_CACHE_LIMIT) {
+    const oldest = totalCache.keys().next().value;
+    if (oldest === undefined) break;
+    totalCache.delete(oldest);
+  }
+}
+
 async function contentTotal(target, offset) {
+  const key = target.toString();
+  const cached = totalCache.get(key);
+  if (cached && Date.now() - cached.at < TOTAL_CACHE_TTL_MS) {
+    // refresh insertion order so the limit evicts the least recently used URL
+    totalCache.delete(key);
+    totalCache.set(key, cached);
+    return cached.total;
+  }
+
   try {
     const probe = await fetch(target, {
       headers: {
@@ -373,7 +403,10 @@ async function contentTotal(target, offset) {
     const total = CONTENT_RANGE_TOTAL.exec(
       probe.headers.get("content-range") ?? "",
     )?.[1];
-    return total ? Number(total) : null;
+    if (!total) return null;
+    const size = Number(total);
+    rememberTotal(key, size);
+    return size;
   } catch {
     return null;
   }
@@ -558,13 +591,19 @@ export default {
     const url = new URL(request.url);
 
     try {
-      if (url.pathname === API_PREFIX || url.pathname.startsWith(`${API_PREFIX}/`)) {
+      if (
+        url.pathname === API_PREFIX ||
+        url.pathname.startsWith(`${API_PREFIX}/`)
+      ) {
         return await handleApi(request, url);
       }
       if (url.pathname === MEDIA_PREFIX) {
         return await handleMedia(request, url);
       }
-      if (url.pathname === YT_PREFIX || url.pathname.startsWith(`${YT_PREFIX}/`)) {
+      if (
+        url.pathname === YT_PREFIX ||
+        url.pathname.startsWith(`${YT_PREFIX}/`)
+      ) {
         return await handleInnertube(request, url);
       }
     } catch (error) {

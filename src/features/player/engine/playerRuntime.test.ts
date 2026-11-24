@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({ resolvePlaybackStream: vi.fn() }));
+const seekMocks = vi.hoisted(() => ({ applyMediaSeek: vi.fn() }));
 
 vi.mock("./streamResolver", () => ({
   resolvePlaybackStream: mocks.resolvePlaybackStream,
 }));
+
+vi.mock("./seek", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./seek")>();
+  seekMocks.applyMediaSeek.mockImplementation(actual.applyMediaSeek);
+  return { ...actual, applyMediaSeek: seekMocks.applyMediaSeek };
+});
 
 import { playerRuntime, PlayerRuntime } from "./playerRuntime";
 import { usePlayerStore } from "../store/playerStore";
@@ -210,9 +217,7 @@ describe("PlayerRuntime — a stall always resolves", () => {
   });
 
   it("reloads the stalled track once instead of spinning forever", () => {
-    const loadSpy = vi
-      .spyOn(playerRuntime!, "loadAndPlay")
-      .mockResolvedValue();
+    const loadSpy = vi.spyOn(playerRuntime!, "loadAndPlay").mockResolvedValue();
 
     runtime.audio.dispatchEvent(new Event("waiting"));
     vi.advanceTimersByTime(11_000);
@@ -296,7 +301,10 @@ describe("PlayerRuntime audio caching", () => {
       .audio;
     // jsdom never fires canplay: the old load path sat out its full three
     // second deadline here before even calling play()
-    Object.defineProperty(audio, "readyState", { value: 0, configurable: true });
+    Object.defineProperty(audio, "readyState", {
+      value: 0,
+      configurable: true,
+    });
     const selected: Track = { ...track, id: "no-canplay", title: "No canplay" };
 
     const started = Date.now();
@@ -312,7 +320,9 @@ describe("PlayerRuntime audio caching", () => {
     mocks.resolvePlaybackStream.mockResolvedValue(urlStream);
     const playSpy = vi
       .spyOn(HTMLMediaElement.prototype, "play")
-      .mockRejectedValueOnce(new DOMException("bad source", "NotSupportedError"))
+      .mockRejectedValueOnce(
+        new DOMException("bad source", "NotSupportedError"),
+      )
       .mockResolvedValue();
     const selected: Track = { ...track, id: "bad-source", title: "Bad source" };
 
@@ -338,7 +348,10 @@ describe("PlayerRuntime audio caching", () => {
       .mockResolvedValue();
     const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
       .audio;
-    Object.defineProperty(audio, "readyState", { value: 4, configurable: true });
+    Object.defineProperty(audio, "readyState", {
+      value: 4,
+      configurable: true,
+    });
 
     const first: Track = { ...track, id: "rapid-a", title: "A" };
     const second: Track = { ...track, id: "rapid-b", title: "B" };
@@ -373,7 +386,10 @@ describe("PlayerRuntime audio caching", () => {
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
       .audio;
-    Object.defineProperty(audio, "readyState", { value: 4, configurable: true });
+    Object.defineProperty(audio, "readyState", {
+      value: 4,
+      configurable: true,
+    });
     const selected: Track = { ...track, id: "repeat-click", title: "Repeat" };
 
     const first = playerRuntime!.loadAndPlay(selected);
@@ -393,13 +409,19 @@ describe("PlayerRuntime audio caching", () => {
       releasePreload = resolve;
     });
     const resolveSpy = mocks.resolvePlaybackStream.mockImplementation(
-      (_track: unknown, _signal: unknown, options?: { progressive?: boolean }) =>
-        options?.progressive ? Promise.resolve(urlStream) : preloadGate,
+      (
+        _track: unknown,
+        _signal: unknown,
+        options?: { progressive?: boolean },
+      ) => (options?.progressive ? Promise.resolve(urlStream) : preloadGate),
     );
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
       .audio;
-    Object.defineProperty(audio, "readyState", { value: 4, configurable: true });
+    Object.defineProperty(audio, "readyState", {
+      value: 4,
+      configurable: true,
+    });
 
     const preloaded: Track = {
       ...track,
@@ -437,7 +459,10 @@ describe("PlayerRuntime audio caching", () => {
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     const audio = (playerRuntime as unknown as { audio: HTMLAudioElement })
       .audio;
-    Object.defineProperty(audio, "readyState", { value: 4, configurable: true });
+    Object.defineProperty(audio, "readyState", {
+      value: 4,
+      configurable: true,
+    });
     const getAudioSpy = vi
       .spyOn(linerDb, "getAudio")
       .mockImplementation(() => new Promise(() => {}));
@@ -607,7 +632,10 @@ describe("PlayerRuntime audio caching", () => {
       writable: true,
       configurable: true,
     });
-    Object.defineProperty(audio, "readyState", { value: 0, configurable: true });
+    Object.defineProperty(audio, "readyState", {
+      value: 0,
+      configurable: true,
+    });
     audio.src = "blob:pending-seek-a";
     // the user drags the timeline while track A has no metadata yet, then picks
     // track B before A ever fires loadedmetadata
@@ -679,4 +707,68 @@ describe("PlayerRuntime audio caching", () => {
       Reflect.deleteProperty(audio, "error");
     }
   }, 15_000);
+});
+
+describe("PlayerRuntime — seeks go through the clamped helper", () => {
+  const audio = (playerRuntime as unknown as { audio: HTMLAudioElement }).audio;
+  let fastSeek: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    seekMocks.applyMediaSeek.mockClear();
+    usePlayerStore.setState({
+      currentTrack: track,
+      positionMs: 0,
+      durationMs: 100_000,
+      status: "paused",
+    });
+    audio.src = "blob:seek-helper";
+    Object.defineProperty(audio, "readyState", {
+      value: 4,
+      configurable: true,
+    });
+    Object.defineProperty(audio, "duration", {
+      value: 100,
+      configurable: true,
+    });
+    Object.defineProperty(audio, "currentTime", {
+      value: 0,
+      writable: true,
+      configurable: true,
+    });
+    fastSeek = vi.fn();
+    Object.defineProperty(audio, "fastSeek", {
+      value: fastSeek,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    for (const key of ["readyState", "duration", "currentTime", "fastSeek"]) {
+      Reflect.deleteProperty(audio, key);
+    }
+  });
+
+  it("routes the seek through applyMediaSeek and clamps it to the media", () => {
+    playerRuntime!.seek(500_000);
+
+    expect(seekMocks.applyMediaSeek).toHaveBeenCalledWith(
+      audio,
+      500_000,
+      100_000,
+      {},
+    );
+    // the old direct assignment would have landed at 500s (past the end)
+    expect(audio.currentTime).toBe(100);
+  });
+
+  it("keeps an exact seek precise and uses fastSeek only for scrubbing", () => {
+    playerRuntime!.seek(30_000);
+    expect(fastSeek).not.toHaveBeenCalled();
+    expect(audio.currentTime).toBe(30);
+
+    playerRuntime!.seek(45_000, { fast: true });
+    expect(fastSeek).toHaveBeenCalledWith(45);
+    // fastSeek is responsible for the move; the exact path was not reused
+    expect(audio.currentTime).toBe(30);
+  });
 });

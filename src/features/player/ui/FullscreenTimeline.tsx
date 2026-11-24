@@ -15,7 +15,7 @@ export function FullscreenTimeline() {
         onScrub={setScrubMs}
         onSeek={(pos) => {
           setScrubMs(null);
-          playerEngine.seek(pos);
+          playerEngine.seek(pos, false, { fast: true });
         }}
         size="md"
         className="w-full"
