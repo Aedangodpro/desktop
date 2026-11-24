@@ -675,13 +675,6 @@
       "local_confirm_desc": "Yerel Müzik, içe aktardığın kitaplığındır, önbellek değil. {tracks} ({size}) kapaklarıyla birlikte Liner'dan silinecek. Orijinal dosyaların yerinde kalır.",
       "local_confirm_button": "Yerel müziği sil"
     },
-    "theme": {
-      "title": "Tema",
-      "description": "Uygulamanın genel görünümünü seç.",
-      "light": "Açık",
-      "dark": "Koyu",
-      "system": "Sistem"
-    },
     "branding": {
       "title": "Marka",
       "description": "Logonun vurgu rengini seç.",

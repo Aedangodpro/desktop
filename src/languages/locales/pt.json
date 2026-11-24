@@ -738,13 +738,6 @@
       "local_confirm_desc": "A música local é a sua biblioteca importada, não cache. {tracks} ({size}) serão apagadas do Liner, junto com as capas. Os seus arquivos originais continuam onde estão.",
       "local_confirm_button": "Apagar música local"
     },
-    "theme": {
-      "title": "Tema",
-      "description": "Escolha a aparência geral do app.",
-      "light": "Claro",
-      "dark": "Escuro",
-      "system": "Sistema"
-    },
     "branding": {
       "title": "Marca",
       "description": "Escolha a cor de destaque da logo.",

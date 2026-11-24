@@ -404,6 +404,8 @@
     "choose_track": "Choose a track in search",
     "queue": "Queue",
     "lyrics": "Lyrics",
+    "line_synced": "Line-synced",
+    "line_synced_hint": "This track has line timing; word timing isn't available.",
     "volume": "Volume",
     "mute": "Mute",
     "unmute": "Unmute",
@@ -603,8 +605,7 @@
       "overlay": "Overlay",
       "discord": "Discord RPC",
       "youtube": "YouTube",
-      "privacy": "Privacy",
-      "themes": "Themes"
+      "privacy": "Privacy"
     },
     "playback": {
       "description": "Queue behavior, click actions and audio output."
@@ -922,13 +923,6 @@
       "cached_in_library_desc": "When off, they appear only in offline mode.",
       "remove_failed": "Couldn't remove these files. Try again."
     },
-    "theme": {
-      "title": "Theme",
-      "description": "Choose the overall appearance of the app.",
-      "light": "Light",
-      "dark": "Dark",
-      "system": "System"
-    },
     "branding": {
       "title": "Branding",
       "description": "Choose the logo accent color.",
@@ -1050,11 +1044,6 @@
     },
     "connection": {
       "open_folder": "Open saved location"
-    },
-    "accent": {
-      "title": "Accent colour",
-      "description": "The colour Liner uses for highlights, likes and playback progress.",
-      "preview": "Preview"
     }
   },
   "toast": {

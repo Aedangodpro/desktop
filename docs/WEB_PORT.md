@@ -297,9 +297,9 @@ See `docs/LYRICS_PIPELINE.md` for the data flow and how to add a provider.
 The browser build trims the parts of the desktop shell that cannot work in a
 tab: window controls (minimise / maximise / close) are not rendered, and the
 Settings integrations group (Discord RPC, YouTube account playback) is hidden
-because neither has a bridge in a browser. A **Themes** tab holds the
-light/dark/system choice plus six accent palettes (`src/shared/utils/accentTheme.ts`),
-persisted under `liner_accent_theme`.
+because neither has a bridge in a browser. Appearance follows the operating
+system; there is no theme or accent picker, so the palette comes from
+`src/app/globals.css` alone.
 
 ## Account data
 

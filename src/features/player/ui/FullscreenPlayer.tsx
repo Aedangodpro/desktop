@@ -7,7 +7,12 @@ import { Notch } from "@/shared/ui";
 import { FullscreenTopNotch } from "./FullscreenTopNotch";
 import { LyricsNotchStatus } from "./LyricsNotchStatus";
 import { FullscreenFrameGlass } from "./FullscreenFrameGlass";
-import { useLyricsStore, LyricsProviderIsland } from "@/features/lyrics";
+import { PlayerSignature } from "./PlayerSignature";
+import {
+  useLyricsStore,
+  LyricsProviderIsland,
+  LyricsSyncBadge,
+} from "@/features/lyrics";
 import { AnimatePresence, motion } from "framer-motion";
 import { PlayerUiElements } from "./PlayerUiElements";
 import { DownLine } from "@mingcute/react";
@@ -177,6 +182,7 @@ export function FullscreenPlayer({
         <FullscreenTopNotch>
           <BetaVisualsWarning docked={false} />
           {showProviderIsland && <LyricsProviderIsland />}
+          <LyricsSyncBadge />
           {isLyricsLoading && <LyricsNotchStatus kind="loading" />}
           {isLyricsMissing && (
             <LyricsNotchStatus
@@ -199,6 +205,8 @@ export function FullscreenPlayer({
           </button>
         </Notch>
       </div>
+
+      <PlayerSignature />
     </div>
   );
 }

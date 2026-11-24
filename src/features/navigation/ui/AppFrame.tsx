@@ -85,6 +85,8 @@ const LEGACY_LAYOUT_STORAGE_KEYS = [
   "liner_sidebar_position",
   "liner_sidebar_width",
   "liner_queue_popup_open",
+  // the accent palette picker was removed with the themes tab
+  "liner_accent_theme",
 ] as const;
 
 const AppOverlays = memo(function AppOverlays() {

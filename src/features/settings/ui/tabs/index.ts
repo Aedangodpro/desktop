@@ -1,7 +1,6 @@
 export { PlaybackTab } from "./PlaybackTab";
 export { ShortcutsTab } from "./ShortcutsTab";
 export { AppearanceTab } from "./AppearanceTab";
-export { ThemesTab } from "./ThemesTab";
 export { StorageTab } from "./StorageTab";
 export { AboutTab } from "./AboutTab";
 export { OverlayTab } from "./OverlayTab";

@@ -679,13 +679,6 @@
       "local_confirm_desc": "Muzyka lokalna to twoja zaimportowana biblioteka, a nie pamięć podręczna. {tracks} ({size}) zostanie usuniętych z Liner razem z okładkami. Oryginalne pliki zostaną na miejscu.",
       "local_confirm_button": "Usuń muzykę lokalną"
     },
-    "theme": {
-      "title": "Motyw",
-      "description": "Wybierz ogólny wygląd aplikacji.",
-      "light": "Jasny",
-      "dark": "Ciemny",
-      "system": "Systemowy"
-    },
     "branding": {
       "title": "Logo",
       "description": "Wybierz kolor akcentu logo.",

@@ -620,13 +620,6 @@
       "local_confirm_desc": "Lokale Musik ist deine importierte Bibliothek, kein Cache. {tracks} ({size}) werden samt Covern aus Liner gelöscht. Deine Originaldateien bleiben, wo sie sind.",
       "local_confirm_button": "Lokale Musik löschen"
     },
-    "theme": {
-      "title": "Design",
-      "description": "Wähle das allgemeine Erscheinungsbild der App.",
-      "light": "Hell",
-      "dark": "Dunkel",
-      "system": "System"
-    },
     "branding": {
       "title": "Branding",
       "description": "Wähle die Akzentfarbe des Logos.",

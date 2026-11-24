@@ -9,7 +9,6 @@ import {
 import {
   Play,
   Palette,
-  Sun,
   InfoCircle,
   Database,
   Widget5,
@@ -23,7 +22,6 @@ import {
   PlaybackTab,
   ShortcutsTab,
   AppearanceTab,
-  ThemesTab,
   StorageTab,
   AboutTab,
   OverlayTab,
@@ -40,7 +38,6 @@ type TabId =
   | "Discord"
   | "Youtube"
   | "Appearance"
-  | "Themes"
   | "Storage"
   | "About";
 
@@ -51,7 +48,6 @@ const TAB_ICONS: Record<TabId, React.ComponentType<SettingsNavIconProps>> = {
   Discord: DiscordFill,
   Youtube: YoutubeFill,
   Appearance: Palette,
-  Themes: Sun,
   Storage: Database,
   About: InfoCircle,
 };
@@ -60,7 +56,7 @@ type TabGroupKey = "player" | "interface" | "integrations" | "application";
 
 const TAB_GROUPS: { labelKey: TabGroupKey; ids: TabId[] }[] = [
   { labelKey: "player", ids: ["Playback", "Shortcuts"] },
-  { labelKey: "interface", ids: ["Themes", "Appearance", "Overlay"] },
+  { labelKey: "interface", ids: ["Appearance", "Overlay"] },
   // Discord presence and YouTube account playback are desktop-only: a browser
   // has neither the RPC socket nor the OAuth bridge, so they would be controls
   // that cannot do anything.
@@ -219,18 +215,6 @@ const SETTING_ITEMS: { tabId: TabId; titleKey: string; descKey?: string }[] = [
     descKey: "settings.youtube.sync_library.description",
   },
 
-  // Themes
-  {
-    tabId: "Themes",
-    titleKey: "settings.theme.title",
-    descKey: "settings.theme.description",
-  },
-  {
-    tabId: "Themes",
-    titleKey: "settings.accent.title",
-    descKey: "settings.accent.description",
-  },
-
   // Appearance
   {
     tabId: "Appearance",
@@ -280,7 +264,6 @@ export default function SettingsModal() {
     Discord: t("settings.tabs.discord") || "Discord RPC",
     Youtube: t("settings.tabs.youtube") || "YouTube",
     Appearance: t("settings.tabs.appearance"),
-    Themes: t("settings.tabs.themes") || "Themes",
     Storage: t("settings.tabs.storage"),
     About: t("settings.tabs.about"),
   };
@@ -300,7 +283,6 @@ export default function SettingsModal() {
       t("settings.youtube.description") ||
       "Sign in to your YouTube account to prevent playback errors.",
     Appearance: t("settings.language.description"),
-    Themes: t("settings.accent.description") || "Appearance and accent colour.",
     Storage: t("settings.storage.description"),
     About: t("settings.about.tagline"),
   };
@@ -317,7 +299,6 @@ export default function SettingsModal() {
       Discord: "settings.tabs.discord",
       Youtube: "settings.tabs.youtube",
       Appearance: "settings.tabs.appearance",
-      Themes: "settings.tabs.themes",
       Storage: "settings.tabs.storage",
       About: "settings.tabs.about",
     };
@@ -329,7 +310,6 @@ export default function SettingsModal() {
       Discord: "settings.discord.description",
       Youtube: "settings.youtube.description",
       Appearance: "settings.language.description",
-      Themes: "settings.accent.description",
       Storage: "settings.storage.description",
       About: "settings.about.tagline",
     };
@@ -458,9 +438,6 @@ export default function SettingsModal() {
               )}
               {activeTab === "Appearance" && (
                 <AppearanceTab searchQuery={searchQuery} />
-              )}
-              {activeTab === "Themes" && (
-                <ThemesTab searchQuery={searchQuery} />
               )}
               {activeTab === "Storage" && (
                 <StorageTab searchQuery={searchQuery} />

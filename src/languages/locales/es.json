@@ -673,13 +673,6 @@
       "local_confirm_desc": "La música local es tu biblioteca importada, no caché. Se borrarán de Liner {tracks} ({size}), junto con sus portadas. Tus archivos originales se quedan donde están.",
       "local_confirm_button": "Borrar música local"
     },
-    "theme": {
-      "title": "Tema",
-      "description": "Elige la apariencia general de la aplicación.",
-      "light": "Claro",
-      "dark": "Oscuro",
-      "system": "Sistema"
-    },
     "branding": {
       "title": "Color de énfasis",
       "description": "Elige el color de acento para el logotipo y detalles.",

@@ -31,6 +31,7 @@ export {
   type SyncedLine,
 } from "./hooks/useLyricsAnimator";
 export { LyricsProviderIsland } from "./ui/LyricsProviderIsland";
+export { LyricsSyncBadge } from "./ui/LyricsSyncBadge";
 export {
   LyricsCanvasRenderer,
   type LyricsClock,

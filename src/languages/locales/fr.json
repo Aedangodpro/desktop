@@ -779,13 +779,6 @@
       "local_confirm_desc": "La musique locale est votre bibliothèque importée, pas du cache. {tracks} ({size}) seront supprimés de Liner, avec leurs pochettes. Vos fichiers d'origine restent à leur place.",
       "local_confirm_button": "Supprimer la musique locale"
     },
-    "theme": {
-      "title": "Thème",
-      "description": "Choisissez l'apparence générale de l'application.",
-      "light": "Clair",
-      "dark": "Sombre",
-      "system": "Système"
-    },
     "branding": {
       "title": "Logo",
       "description": "Choisissez la couleur d'accent du logo.",

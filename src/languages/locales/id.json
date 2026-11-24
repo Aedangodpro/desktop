@@ -750,13 +750,6 @@
       "local_confirm_desc": "Musik Lokal adalah pustaka yang kamu impor, bukan cache. {tracks} ({size}) akan dihapus dari Liner beserta sampulnya. File aslimu tetap di tempatnya.",
       "local_confirm_button": "Hapus musik lokal"
     },
-    "theme": {
-      "title": "Tema",
-      "description": "Pilih tampilan keseluruhan aplikasi.",
-      "light": "Terang",
-      "dark": "Gelap",
-      "system": "Sistem"
-    },
     "branding": {
       "title": "Branding",
       "description": "Pilih warna aksen logo.",
