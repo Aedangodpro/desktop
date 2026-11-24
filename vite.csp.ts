@@ -1,6 +1,6 @@
 import type { Plugin } from "vite";
 
-function contentSecurityPolicy(isDev: boolean): string {
+export function contentSecurityPolicy(isDev: boolean): string {
   const scriptSources = [
     "'self'",
     "'unsafe-eval'",
