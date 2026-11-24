@@ -40,6 +40,18 @@ describe("kawarp frame pacing", () => {
     expect(fps).toBeLessThanOrEqual(72.5);
   });
 
+  it("follows a 144 Hz display in full visuals instead of holding 60", () => {
+    const fps = framesPerSecond(144, 1000);
+    expect(fps).toBeGreaterThanOrEqual(143);
+    expect(fps).toBeLessThanOrEqual(144);
+  });
+
+  it("follows a 200 Hz display in full visuals", () => {
+    const fps = framesPerSecond(200, 1000);
+    expect(fps).toBeGreaterThanOrEqual(199);
+    expect(fps).toBeLessThanOrEqual(200);
+  });
+
   it("still throttles the cheaper visual mode to roughly 30 fps", () => {
     const fps = framesPerSecond(60, 30);
     expect(fps).toBeGreaterThanOrEqual(28);

@@ -9,12 +9,14 @@ export const KAWARP_RENDER_SCALE = 0.5;
 
 /**
  * The background is the largest moving surface in the player, so its frame rate
- * is what decides whether playback feels like 30 or 60 fps. Full visuals run at
- * the display rate (capped at 60); the cheaper mode keeps 30, where the savings
- * matter more than the cadence.
+ * is what decides whether playback feels like 30 or the display's own cadence.
+ * Full visuals follow the display — rAF is already vsynced, and the high cap
+ * only guards against a runaway loop — so a 144 or 200 Hz panel is drawn every
+ * refresh instead of being held to 60. The cheaper mode keeps 30, where the
+ * savings matter more than the cadence.
  */
 export function kawarpFpsFor(isFullVisuals: boolean): number {
-  return isFullVisuals ? 60 : 30;
+  return isFullVisuals ? 1000 : 30;
 }
 
 interface KawarpWrapperProps {

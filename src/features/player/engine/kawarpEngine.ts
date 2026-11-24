@@ -8,6 +8,14 @@ const BLUR_SIZE = 160;
 const WARP_SCALE = 0.25;
 const DEFAULT_MAX_FPS = 30;
 /**
+ * Highest accepted `maxFps`. Full visuals pass this on purpose: rAF is already
+ * locked to the display, so the only job of the value is to stop a bad option
+ * from becoming a runaway loop. 1000 sits above every current panel, which
+ * makes full visuals draw every refresh — 60, 120, 144, 200 or 240 — instead
+ * of capping the player to 60 on a monitor that can show more.
+ */
+const MAX_FPS_LIMIT = 1000;
+/**
  * The background used to render at a fixed 30 fps, which is the one thing in
  * the player that visibly stepped at 30 while everything around it ran at the
  * display rate. Full visuals now follow the display up to 60 fps.
@@ -21,7 +29,7 @@ const FRAME_TOLERANCE_RATIO = 0.75;
 
 function clampMaxFps(fps: number): number {
   return Number.isFinite(fps)
-    ? Math.min(120, Math.max(20, Math.round(fps)))
+    ? Math.min(MAX_FPS_LIMIT, Math.max(20, Math.round(fps)))
     : DEFAULT_MAX_FPS;
 }
 
