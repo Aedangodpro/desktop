@@ -14,6 +14,8 @@ interface CheckMessage {
   token?: string;
 }
 
+const LOAD_TIMEOUT_MS = 12_000;
+
 export interface CheckFrameProps {
   action: HumanCheckAction;
   attempt: number;
@@ -41,6 +43,16 @@ export default function CheckFrame({ action, attempt }: CheckFrameProps) {
     return () => window.removeEventListener("message", onMessage);
   }, [action, setPhase, solve]);
 
+  // A frame the page is not allowed to embed fires no useful load and never
+  // posts a token, which used to leave sign-in waiting forever behind a white
+  // box. Report the failure so the panel offers a retry instead.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (useHumanCheckStore.getState().phase === "loading") setPhase("error");
+    }, LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [attempt, setPhase]);
+
   const markLoaded = () => {
     if (useHumanCheckStore.getState().phase === "loading") setPhase("ready");
   };
@@ -62,7 +74,7 @@ export default function CheckFrame({ action, attempt }: CheckFrameProps) {
         onLoad={markLoaded}
         className={cn(
           "absolute inset-0 size-full border-0 bg-transparent opacity-0 transition-opacity duration-300 ease-out [color-scheme:dark]",
-          ready && "opacity-100",
+          ready && phase !== "error" && "opacity-100",
         )}
       />
     </div>

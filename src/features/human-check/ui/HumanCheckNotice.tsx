@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "@/languages";
@@ -10,6 +10,8 @@ import ShieldBadge from "./ShieldBadge";
 const buttonBase =
   "h-[40px] flex-1 rounded-item px-[18px] text-[14.5px] font-[500] transition-colors";
 
+const SLOW_CHECK_MS = 20_000;
+
 export default function HumanCheckNotice() {
   const { t } = useTranslation();
   const request = useHumanCheckStore((state) => state.request);
@@ -18,6 +20,14 @@ export default function HumanCheckNotice() {
   const retry = useHumanCheckStore((state) => state.retry);
   const cancel = useHumanCheckStore((state) => state.cancel);
   const failed = phase === "error";
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    setSlow(false);
+    if (!request) return;
+    const timer = window.setTimeout(() => setSlow(true), SLOW_CHECK_MS);
+    return () => window.clearTimeout(timer);
+  }, [request, attempt]);
 
   useEffect(() => {
     if (!request) return;
@@ -72,15 +82,17 @@ export default function HumanCheckNotice() {
           <div className="mt-[10px] flex gap-[8px]">
             <button
               type="button"
-              disabled={!failed}
-              onClick={failed ? retry : undefined}
+              disabled={!failed && !slow}
+              onClick={failed || slow ? retry : undefined}
               className={cn(
                 buttonBase,
                 "bg-text-primary/75 text-bg-primary/80",
-                failed ? "hover:bg-text-primary/90" : "cursor-default",
+                failed || slow ? "hover:bg-text-primary/90" : "cursor-default",
               )}
             >
-              {failed ? t("human_check.retry") : t("human_check.waiting")}
+              {failed || slow
+                ? t("human_check.retry")
+                : t("human_check.waiting")}
             </button>
             <button
               type="button"

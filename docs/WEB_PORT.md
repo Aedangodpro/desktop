@@ -375,6 +375,14 @@ same-origin path, so `humanCheckOrigin()` resolves it against
 `new URL("/__liner")` throws `TypeError: Invalid URL`, which used to crash the
 check frame and leave sign-in awaiting a token forever.
 
+Because that frame is same-origin, the injected page policy must list `'self'`
+in `frame-src` (`vite.csp.ts`). With only the API host listed, Chrome refuses to
+frame `/__liner/v1/auth/verify`, fires `load` on the blocked frame anyway, and
+the panel shows an empty white rectangle with no widget. A frame that never
+reports ready is also reported as a failed check after 12 s, and the panel
+enables its retry button after 20 s, so a blocked or unreachable check cannot
+strand sign-in on a disabled button.
+
 ## Static hosting (GitHub Pages)
 
 `pnpm build:web` emits a fully static `dist-web/`. Set the base path to the

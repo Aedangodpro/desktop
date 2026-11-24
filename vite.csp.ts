@@ -17,7 +17,10 @@ function contentSecurityPolicy(isDev: boolean): string {
     "img-src 'self' * http: https: data: blob: liner-local:",
     "media-src 'self' * http: https: data: blob: liner-local:",
     "connect-src 'self' * http: https: ws: wss: data: blob:",
-    `frame-src https://*.tryliner.fun${isDev ? " http://localhost:* http://127.0.0.1:*" : ""}`,
+    // 'self' is the web build's check frame: it loads /__liner/v1/auth/verify
+    // from the page's own origin, and without 'self' the directive refuses to
+    // frame it, which renders as a blank white box and no Turnstile widget.
+    `frame-src 'self' https://*.tryliner.fun${isDev ? " http://localhost:* http://127.0.0.1:*" : ""}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
