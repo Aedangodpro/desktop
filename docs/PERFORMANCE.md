@@ -129,6 +129,45 @@ a switched-off "use hardware acceleration" setting both do it. `isSoftwareGpu()`
 `balanced`, because the warp, the ambient canvas and the lyrics are all their
 CPU's problem in that state.
 
+## Dialog input latency
+
+Dialogs were the slowest interaction in the app. On the production web build at
+1440x900 (guest), opening the create-playlist dialog took **218.5 ms** from
+click to the next presented frame, and typing in its title field cost **84.6 ms
+p50 / 118.3 ms p95** per keystroke. Event Timing recorded no long tasks; LoAF
+recorded 18 frames up to 207 ms with zero blocking time, which puts the cost in
+paint/composite rather than JavaScript.
+
+The cause was two `backdrop-filter` layers over the page: the full-screen scrim
+(`backdrop-blur-[2px]`, over `bg-black/15`) and the dialog panel
+(`backdrop-blur-2xl`). Every change inside the panel forced the compositor to
+re-blur the whole page behind it. Isolating them: 63.3 ms per key with both,
+23.9 ms with only the scrim blur removed, 50.4 ms with only the panel blur
+removed, 11.8 ms with neither.
+
+Both layers are gone from `Dialog`. The panel keeps `bg-surface-glass`, which is
+90–92% opaque, so the blur was barely visible; the 2 px scrim blur was invisible
+entirely. `dialogSurfaces.test.ts` keeps them from coming back.
+
+| Interaction (1440x900, production build) |          Before |   After |
+| ---------------------------------------- | --------------: | ------: |
+| Dialog open, click → next frame          |        218.5 ms | 27.9 ms |
+| Keystroke in dialog, p50                 |         84.6 ms | 16.8 ms |
+| Keystroke in dialog, p95                 |        118.3 ms | 33.3 ms |
+| Slow animation frames (LoAF)             | 18 (max 207 ms) |       0 |
+
+Signed-out library visits also requested `GET /v1/me/library/{albums,artists,playlists}`
+and collected three 401s each time, because saved collections are account data
+with no local fallback. `useExternalItems` now takes `enabled` from
+`useSessionSignedIn()`, so those requests only happen with a session. Over the
+same three-round-trip navigation measurement the request count fell from 9 to 1.
+
+Route changes (27.3 ms p50 click → next frame), library tab switches (27.5 ms)
+and search typing (16.2 ms p50 key → next frame) were re-measured and are
+unchanged: those numbers are at the 60 Hz headless vsync floor, not a render
+cost. The fullscreen player and its lyrics view could not be measured in this
+environment without a signed-in stream; the mount is a separate open item.
+
 ## Measured on this pass
 
 `scripts/perf/lyricsProbe.ts` now takes the canvas size and the lyric shape from

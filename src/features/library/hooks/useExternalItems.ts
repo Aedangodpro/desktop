@@ -5,7 +5,10 @@ import {
   revalidateResource,
   useCachedResource,
 } from "@/shared/cache/useCachedResource";
-import { useSessionOwner } from "@/features/home/hooks/sessionAwareLoad";
+import {
+  useSessionOwner,
+  useSessionSignedIn,
+} from "@/features/home/hooks/sessionAwareLoad";
 import type { LibraryItemViewModel } from "../types";
 
 export type EntityType = "album" | "artist" | "playlist";
@@ -56,19 +59,23 @@ async function loadSavedItems(
 
 export function useExternalItems(type: EntityType) {
   const owner = useSessionOwner();
+  const signedIn = useSessionSignedIn();
   const key = `library:saved:${type}:${owner}`;
   const { data, isLoading } = useCachedResource(
     key,
     () => loadSavedItems(type),
-    SAVED_ITEMS_POLICY,
+    // Saved collections are account data. Asking for them without a session
+    // only collects a 401 on every signed-out library visit.
+    { ...SAVED_ITEMS_POLICY, enabled: signedIn },
   );
 
   useEffect(() => {
+    if (!signedIn) return;
     const refresh = () =>
       void revalidateResource(key, () => loadSavedItems(type), { force: true });
     window.addEventListener("library:changed", refresh);
     return () => window.removeEventListener("library:changed", refresh);
-  }, [key, type]);
+  }, [key, type, signedIn]);
 
   return { data: data ?? EMPTY_ITEMS, isLoading };
 }
