@@ -28,7 +28,9 @@ export default function LoginPage() {
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
   const { t } = useTranslation();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  // Most visitors arrive without an account, so the page opens on the sign-up
+  // form; signing in is one click away in the tab row.
+  const [mode, setMode] = useState<"login" | "register">("register");
   const [registerStep, setRegisterStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");

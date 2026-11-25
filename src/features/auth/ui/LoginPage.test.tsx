@@ -138,27 +138,35 @@ describe("LoginPage Multi-Step Registration Flow", () => {
     }
   });
 
-  it("renders in Login mode by default", async () => {
+  it("opens in Register mode so new visitors can create an account", async () => {
     await act(async () => {
       root.render(<LoginPage />);
     });
 
     expect(container.querySelector("#auth-email")).not.toBeNull();
     expect(container.querySelector("#auth-password")).not.toBeNull();
-    expect(container.querySelector("#auth-confirm")).toBeNull();
+    expect(container.querySelector("#auth-confirm")).not.toBeNull();
     expect(container.querySelector("#auth-username")).toBeNull();
+    expect(container.textContent).toContain("Join Liner");
 
     const buttons = Array.from(container.querySelectorAll("button"));
-    const createAccBtn = buttons.find((b) =>
-      b.textContent?.includes("Create account"),
-    );
-    expect(createAccBtn).toBeDefined();
+    const signInBtn = buttons.find((b) => b.textContent?.trim() === "Sign in");
+    expect(signInBtn).toBeDefined();
   });
 
-  it("skips native email validation and shows the styled error in Login mode", async () => {
+  it("skips native email validation and shows the styled error on sign-in", async () => {
     await act(async () => {
       root.render(<LoginPage />);
     });
+
+    // The page opens on sign-up now; switch to the sign-in form first.
+    const signInTab = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Sign in",
+    );
+    await act(async () => {
+      signInTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelector("#auth-confirm")).toBeNull();
 
     const form = container.querySelector("form") as HTMLFormElement;
     expect(form.noValidate).toBe(true);
