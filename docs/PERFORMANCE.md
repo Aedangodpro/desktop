@@ -107,6 +107,17 @@ Two per-frame costs grew with the panel instead of with what changes on screen:
   panel rate from `useDisplayRefreshRate()`. The late-frame test keeps its
   60 Hz floor, so an occasional doubled refresh is still not a downgrade.
 
+Both fixes depend on knowing the panel rate, and that measurement was the next
+bottleneck: one 500 ms window taken at mount. On Chrome that window runs while
+the app is still booting at 60 Hz, so a 200 Hz screen was recorded as 60 for the
+rest of the session — `KawarpWrapper` then paced the effect at 60/30 fps and
+`isStrained` judged frames against a 25 ms budget. `detectRefreshRate()` now
+samples three 500 ms windows with a gap between them and keeps the fastest
+cadence (`bestRefreshRate()`), because frames are only ever delivered late, and
+`useDisplayRefreshRate()` re-measures after a fallback reading: once 2.5 s after
+mount and once on the next visible frame, at most twice per session. A real
+60 Hz panel simply reads 60 every time.
+
 ## React and background work
 
 - Timeline updates arrive from the audio element's `timeupdate` (roughly 4 per

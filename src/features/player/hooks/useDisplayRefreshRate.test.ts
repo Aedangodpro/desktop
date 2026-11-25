@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bestRefreshRate,
   FALLBACK_REFRESH_HZ,
   refreshRateFromDeltas,
   snapRefreshRate,
@@ -43,5 +44,19 @@ describe("display refresh rate", () => {
   it("needs a usable sample before it trusts a rate", () => {
     expect(refreshRateFromDeltas(deltas(60, 4))).toBe(FALLBACK_REFRESH_HZ);
     expect(refreshRateFromDeltas([])).toBe(FALLBACK_REFRESH_HZ);
+  });
+
+  it("keeps the fastest window when an early window was throttled", () => {
+    // Chrome runs a booting page at 60 Hz and the panel rate afterwards.
+    expect(bestRefreshRate([deltas(60), deltas(60), deltas(200)])).toBe(200);
+  });
+
+  it("does not let an unusable window drag the rate down", () => {
+    expect(bestRefreshRate([deltas(200), deltas(60, 4)])).toBe(200);
+  });
+
+  it("reports 60 when every window really was 60", () => {
+    expect(bestRefreshRate([deltas(60), deltas(60)])).toBe(60);
+    expect(bestRefreshRate([])).toBe(FALLBACK_REFRESH_HZ);
   });
 });
