@@ -346,7 +346,8 @@
       "login_successful": "Giriş başarılı",
       "account_created": "Hesap oluşturuldu!",
       "logged_in": "Giriş yapıldı!"
-    }
+    },
+    "web_accounts_note": "Hesaplar henüz tarayıcıda oluşturulamıyor. Liner masaüstü uygulamasında bir hesap oluşturun, ardından burada oturum açın."
   },
   "player": {
     "mute": "Sesi kapat",

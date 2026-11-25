@@ -346,7 +346,8 @@
       "login_successful": "Accesso riuscito",
       "account_created": "Account creato!",
       "logged_in": "Accesso effettuato!"
-    }
+    },
+    "web_accounts_note": "Non è ancora possibile creare account nel browser. Creane uno nell'app desktop di Liner, poi accedi qui."
   },
   "player": {
     "mute": "Disattiva audio",

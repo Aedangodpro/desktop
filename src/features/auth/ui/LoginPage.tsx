@@ -28,9 +28,16 @@ export default function LoginPage() {
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
   const { t } = useTranslation();
-  // Most visitors arrive without an account, so the page opens on the sign-up
-  // form; signing in is one click away in the tab row.
-  const [mode, setMode] = useState<"login" | "register">("register");
+  // Account creation cannot finish in a browser tab: the register challenge
+  // needs a Turnstile widget bound to the API owner's hosts, and
+  // `/v1/auth/register` itself sits behind an edge challenge that a Worker's
+  // egress cannot pass. The web build therefore offers sign-in only. Most
+  // desktop visitors arrive without an account, so there the page still opens
+  // on the sign-up form.
+  const canRegister = !IS_WEB_TARGET;
+  const [mode, setMode] = useState<"login" | "register">(
+    canRegister ? "register" : "login",
+  );
   const [registerStep, setRegisterStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -47,6 +54,7 @@ export default function LoginPage() {
 
   const selectMode = (next: "login" | "register") => {
     if (submitting || next === mode) return;
+    if (next === "register" && !canRegister) return;
     setMode(next);
     setRegisterStep(1);
     setError("");
@@ -205,6 +213,13 @@ export default function LoginPage() {
       : registerStep === 1
         ? t("login.auth_subtitle_register")
         : t("login.profile_setup_subtitle");
+  const modes: ReadonlyArray<{ id: "login" | "register"; label: string }> =
+    canRegister
+      ? [
+          { id: "login", label: t("login.btn_sign_in") },
+          { id: "register", label: t("login.btn_create_account") },
+        ]
+      : [{ id: "login", label: t("login.btn_sign_in") }];
 
   return (
     <main
@@ -226,12 +241,7 @@ export default function LoginPage() {
           <div className="flex flex-col pb-6">
             <div className="w-full">
               <div className="flex gap-[8px]">
-                {(
-                  [
-                    { id: "login", label: t("login.btn_sign_in") },
-                    { id: "register", label: t("login.btn_create_account") },
-                  ] as const
-                ).map((item) => (
+                {modes.map((item) => (
                   <button
                     key={item.id}
                     type="button"
@@ -246,6 +256,11 @@ export default function LoginPage() {
                   </button>
                 ))}
               </div>
+              {!canRegister && (
+                <p className="m-0 mt-[10px] text-[11.5px] leading-[1.5] text-text-tertiary">
+                  {t("login.web_accounts_note")}
+                </p>
+              )}
               <form
                 noValidate
                 onSubmit={submit}

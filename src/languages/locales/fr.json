@@ -383,7 +383,8 @@
       "login_successful": "Connexion réussie",
       "account_created": "Compte créé !",
       "logged_in": "Connecté !"
-    }
+    },
+    "web_accounts_note": "Les comptes ne peuvent pas encore être créés dans le navigateur. Créez-en un dans l'application de bureau Liner, puis connectez-vous ici."
   },
   "player": {
     "mute": "Couper le son",

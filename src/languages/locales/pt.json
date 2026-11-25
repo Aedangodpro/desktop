@@ -352,7 +352,8 @@
       "login_successful": "Login bem-sucedido",
       "account_created": "Conta criada!",
       "logged_in": "Conectado!"
-    }
+    },
+    "web_accounts_note": "Ainda não é possível criar contas no navegador. Crie uma no aplicativo de desktop do Liner e entre aqui."
   },
   "player": {
     "mute": "Silenciar",

@@ -401,7 +401,8 @@
     "error_handle_required": "Введите имя пользователя или email",
     "error_password_required": "Введите пароль",
     "error_passwords_no_match": "Пароли не совпадают",
-    "error_wrong_password": "Неверный пароль"
+    "error_wrong_password": "Неверный пароль",
+    "web_accounts_note": "Аккаунты пока нельзя создавать в браузере. Создайте его в приложении Liner для компьютера, а затем войдите здесь."
   },
   "player": {
     "mute": "Выключить звук",

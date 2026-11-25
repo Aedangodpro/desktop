@@ -346,7 +346,8 @@
       "login_successful": "Anmeldung erfolgreich",
       "account_created": "Konto erstellt!",
       "logged_in": "Angemeldet!"
-    }
+    },
+    "web_accounts_note": "Konten lassen sich noch nicht im Browser erstellen. Erstelle eines in der Liner-Desktop-App und melde dich dann hier an."
   },
   "player": {
     "mute": "Stummschalten",

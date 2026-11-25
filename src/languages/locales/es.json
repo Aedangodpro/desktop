@@ -348,7 +348,8 @@
       "login_successful": "Sesión iniciada con éxito",
       "account_created": "¡Cuenta creada con éxito!",
       "logged_in": "¡Sesión iniciada!"
-    }
+    },
+    "web_accounts_note": "Todavía no se pueden crear cuentas en el navegador. Crea una en la app de escritorio de Liner y luego inicia sesión aquí."
   },
   "player": {
     "mute": "Silenciar",

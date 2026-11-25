@@ -395,7 +395,8 @@
       "login_successful": "Login successful",
       "account_created": "Account created!",
       "logged_in": "Logged in!"
-    }
+    },
+    "web_accounts_note": "Accounts can't be created in a browser yet. Create one in the Liner desktop app, then sign in here."
   },
   "player": {
     "repeat_off": "Repeat: off",

@@ -401,7 +401,8 @@
     "error_handle_required": "Введіть імʼя користувача або email",
     "error_password_required": "Введіть пароль",
     "error_passwords_no_match": "Паролі не збігаються",
-    "error_wrong_password": "Невірний пароль"
+    "error_wrong_password": "Невірний пароль",
+    "web_accounts_note": "Облікові записи поки не можна створювати в браузері. Створіть його в застосунку Liner для комп'ютера, а потім увійдіть тут."
   },
   "player": {
     "mute": "Вимкнути звук",

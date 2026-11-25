@@ -345,7 +345,8 @@
       "login_successful": "Berhasil masuk",
       "account_created": "Akun dibuat!",
       "logged_in": "Berhasil masuk!"
-    }
+    },
+    "web_accounts_note": "Akun belum bisa dibuat di browser. Buat akun di aplikasi desktop Liner, lalu masuk di sini."
   },
   "player": {
     "repeat_off": "Ulangi: mati",

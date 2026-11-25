@@ -350,7 +350,8 @@
       "login_successful": "Zalogowano pomyślnie",
       "account_created": "Konto utworzone!",
       "logged_in": "Zalogowano!"
-    }
+    },
+    "web_accounts_note": "Kont nie można jeszcze tworzyć w przeglądarce. Utwórz je w aplikacji desktopowej Liner, a następnie zaloguj się tutaj."
   },
   "player": {
     "mute": "Wycisz",
