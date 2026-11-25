@@ -34,7 +34,7 @@ import { VolumeColumn } from "./VolumeColumn";
 import { SpeedPitchPicker } from "./SpeedPitchPicker";
 import { EqualizerPicker } from "./EqualizerPicker";
 import { isEqActive } from "../engine/equalizer";
-import { TimelineSlider } from "./TimelineSlider";
+import { TimelineSlider, formatPlaybackTime } from "./TimelineSlider";
 import { useTheme } from "next-themes";
 import { useCoverReady, CoverImage, loadCoverElement } from "@/features/covers";
 import { useHasPageBackdrop } from "@/features/settings/store/customizationStore";
@@ -42,10 +42,6 @@ import { ArtistAvatar, ArtistLink } from "@/features/artist";
 import { isLocalTrackId } from "@/shared/media/local";
 import DropdownMenu from "@/shared/ui/DropdownMenu";
 import { useSongMenuItems } from "../hooks/useSongMenuItems";
-
-const PROGRESS_STEP_MS = 1000;
-const PROGRESS_JUMP_TRANSITION =
-  "transform 380ms cubic-bezier(0.22, 1, 0.36, 1)";
 
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   r /= 255;
@@ -98,20 +94,19 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-function extractColorsFromCanvas(
+const ACCENT_LIGHT = "rgb(23, 23, 23)";
+const ACCENT_DARK = "rgb(255, 255, 255)";
+
+function defaultAccentFor(isLight: boolean): string {
+  return isLight ? ACCENT_LIGHT : ACCENT_DARK;
+}
+
+function extractAccentColor(
   canvas: HTMLCanvasElement,
-  isLight = false,
-): {
-  accentColor: string;
-  accentColorSolid: string;
-} {
+  isLight: boolean,
+): string {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) {
-    return {
-      accentColor: "rgba(255, 255, 255, 0.12)",
-      accentColorSolid: "rgb(255, 255, 255)",
-    };
-  }
+  if (!ctx) return defaultAccentFor(isLight);
 
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   let totalWeight = 0;
@@ -142,61 +137,34 @@ function extractColorsFromCanvas(
     }
   }
 
-  let finalR = Math.round(
+  const finalR = Math.round(
     totalWeight > 0.5 ? weightedR / totalWeight : totalR / count,
   );
-  let finalG = Math.round(
+  const finalG = Math.round(
     totalWeight > 0.5 ? weightedG / totalWeight : totalG / count,
   );
-  let finalB = Math.round(
+  const finalB = Math.round(
     totalWeight > 0.5 ? weightedB / totalWeight : totalB / count,
   );
 
   const [h, s, l] = rgbToHsl(finalR, finalG, finalB);
 
   if (isLight) {
-    if (s < 0.12) {
-      return {
-        accentColor: "rgba(0, 0, 0, 0.045)",
-        accentColorSolid: "rgb(30, 30, 30)",
-      };
-    }
-    // Luminous vibrant tint for light theme card progress fill
-    const tintL = 0.5;
-    const tintS = Math.max(0.8, s);
-    const [tintR, tintG, tintB] = hslToRgb(h, tintS, tintL);
-
-    // Deep high-contrast tone for bottom timeline line
+    if (s < 0.12) return "rgb(30, 30, 30)";
     const solidL = Math.max(0.36, Math.min(0.46, l > 0.55 ? 0.4 : l));
     const solidS = Math.max(0.75, s);
     const [solidR, solidG, solidB] = hslToRgb(h, solidS, solidL);
-
-    return {
-      accentColor: `rgba(${tintR}, ${tintG}, ${tintB}, 0.09)`,
-      accentColorSolid: `rgb(${solidR}, ${solidG}, ${solidB})`,
-    };
+    return `rgb(${solidR}, ${solidG}, ${solidB})`;
   }
 
-  // If mostly achromatic / monochrome (black, white, or gray cover)
-  if (s < 0.12) {
-    return {
-      accentColor:
-        l < 0.5 ? "rgba(255, 255, 255, 0.14)" : "rgba(255, 255, 255, 0.09)",
-      accentColorSolid: "rgb(255, 255, 255)",
-    };
-  }
+  // Achromatic / monochrome covers fall back to the theme foreground
+  if (s < 0.12) return ACCENT_DARK;
 
-  // Ensure high contrast and vibrant visibility on dark backgrounds
+  // Keep the accent vibrant and legible on dark backgrounds
   const solidL = Math.max(0.65, Math.min(0.82, l < 0.45 ? 0.7 : l));
   const solidS = Math.max(0.7, s);
   const [solidR, solidG, solidB] = hslToRgb(h, solidS, solidL);
-
-  const bgOpacity = l < 0.25 ? 0.22 : l < 0.5 ? 0.18 : 0.12;
-
-  return {
-    accentColor: `rgba(${solidR}, ${solidG}, ${solidB}, ${bgOpacity})`,
-    accentColorSolid: `rgb(${solidR}, ${solidG}, ${solidB})`,
-  };
+  return `rgb(${solidR}, ${solidG}, ${solidB})`;
 }
 
 export interface MiniPlayerProps {
@@ -221,74 +189,46 @@ function MiniPlayer({
       document.documentElement.getAttribute("data-theme") === "light";
   const miniPlayerStyle = usePlayerStore((state) => state.miniPlayerStyle);
   const usesRoundedStyle = !embedded && miniPlayerStyle === "rounded";
-  const usesBackgroundProgress = true;
   const hasPageBackdrop = useHasPageBackdrop();
-  const [accentColor, setAccentColor] = useState(
-    isLight ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.12)",
-  );
-
   const [accentColorSolid, setAccentColorSolid] = useState(
-    isLight ? "rgb(23, 23, 23)" : "rgb(255, 255, 255)",
+    defaultAccentFor(isLight),
   );
 
   const coverUrl = player.currentTrack?.coverUrl || "";
 
-  useEffect(() => {
-    if (!coverUrl) {
-      setAccentColor(
-        isLight ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.12)",
-      );
-      setAccentColorSolid(isLight ? "rgb(23, 23, 23)" : "rgb(255, 255, 255)");
-      return;
-    }
-    let active = true;
-    void loadCoverElement(coverUrl).then((img) => {
-      if (!active || !img) return;
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = 64;
-        canvas.height = 64;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0, 64, 64);
-        const { accentColor: ac, accentColorSolid: acs } =
-          extractColorsFromCanvas(canvas, isLight);
-        setAccentColor(ac);
-        setAccentColorSolid(acs);
-      } catch {
-        setAccentColor(
-          isLight ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.12)",
-        );
-        setAccentColorSolid(isLight ? "rgb(23, 23, 23)" : "rgb(255, 255, 255)");
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [coverUrl, isLight]);
-
-  const extractAccentColor = useCallback(
+  const applyAccentColor = useCallback(
     (img: HTMLImageElement) => {
       try {
         const canvas = document.createElement("canvas");
         canvas.width = 64;
         canvas.height = 64;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) return;
+        if (!ctx) {
+          setAccentColorSolid(defaultAccentFor(isLight));
+          return;
+        }
         ctx.drawImage(img, 0, 0, 64, 64);
-        const { accentColor: ac, accentColorSolid: acs } =
-          extractColorsFromCanvas(canvas, isLight);
-        setAccentColor(ac);
-        setAccentColorSolid(acs);
+        setAccentColorSolid(extractAccentColor(canvas, isLight));
       } catch {
-        setAccentColor(
-          isLight ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.12)",
-        );
-        setAccentColorSolid(isLight ? "rgb(23, 23, 23)" : "rgb(255, 255, 255)");
+        setAccentColorSolid(defaultAccentFor(isLight));
       }
     },
     [isLight],
   );
+
+  useEffect(() => {
+    if (!coverUrl) {
+      setAccentColorSolid(defaultAccentFor(isLight));
+      return;
+    }
+    let active = true;
+    void loadCoverElement(coverUrl).then((img) => {
+      if (active && img) applyAccentColor(img);
+    });
+    return () => {
+      active = false;
+    };
+  }, [coverUrl, isLight, applyAccentColor]);
 
   const [volumeOpen, setVolumeOpen] = useState(false);
   const volumePinnedRef = useRef(false);
@@ -339,20 +279,7 @@ function MiniPlayer({
     player.durationMs > 0
       ? player.durationMs
       : (player.currentTrack?.durationMs ?? 0);
-  const progress =
-    durationMs > 0
-      ? Math.min(1, Math.max(0, player.positionMs / durationMs))
-      : 0;
-
   const isPlaying = player.status === "playing";
-  const secondProgress =
-    isPlaying && durationMs > 0
-      ? Math.min(
-          1,
-          (Math.floor(player.positionMs / PROGRESS_STEP_MS) + 1) *
-            (PROGRESS_STEP_MS / durationMs),
-        )
-      : progress;
   const isLoading = player.status === "loading";
   const trackTitle = player.currentTrack?.title ?? t("player.nothing_playing");
   const trackArtists = player.currentTrack?.artists ?? t("player.choose_track");
@@ -395,16 +322,11 @@ function MiniPlayer({
   }, [player.repeat]);
   const repeatLabel = t(`player.repeat_${player.repeat}`);
 
-  // "on" state for the shuffle / repeat toggles: the hover tint, but opaque, so the
-  // progress fill sliding underneath never changes it. Values are the hover tint
-  // pre-composited over the toolbox on bg-primary (dark #0a0a0a, light #f5f5f7).
-  // The toolbox pill itself is the opaque bg-toolbox equivalent for the same reason.
-  const activeToggleClass = hasPageBackdrop
-    ? "!bg-black/[0.08] dark:!bg-white/[0.14] !text-text-primary"
-    : "!bg-[#dfdfe1] dark:!bg-[#292929] !text-text-primary";
+  const activeToggleClass =
+    "bg-black/[0.05] dark:bg-white/[0.09] !text-text-primary";
 
   const iconButtonClass =
-    "inline-flex h-[30px] w-[30px] items-center justify-center rounded-control text-text-secondary transition-colors duration-150 hover:bg-black/[0.05] dark:hover:bg-white/[0.09] hover:text-text-primary active:scale-[0.96] border-none bg-transparent cursor-pointer";
+    "inline-flex h-[32px] w-[32px] items-center justify-center rounded-control text-text-secondary transition-colors duration-150 hover:bg-black/[0.05] dark:hover:bg-white/[0.09] hover:text-text-primary active:scale-[0.96] border-none bg-transparent cursor-pointer";
 
   const clearVolumeHoverTimer = useCallback(() => {
     if (volumeHoverCloseTimerRef.current) {
@@ -419,15 +341,11 @@ function MiniPlayer({
     if (!toggle || !root) return;
     const toggleRect = toggle.getBoundingClientRect();
     const rootRect = root.getBoundingClientRect();
-    const bar =
-      toggle.closest<HTMLElement>(".bg-bg-toolbox") || toggle.parentElement;
-    const barRect = bar?.getBoundingClientRect();
 
     const popupW = 46;
     const btnW = toggleRect.width;
     const right = rootRect.right - toggleRect.right + (btnW - popupW) / 2;
-    const targetTop = barRect ? barRect.top : toggleRect.top;
-    const bottom = rootRect.bottom - targetTop + 2;
+    const bottom = rootRect.height + 2;
 
     setVolumePopupStyle({
       right: Math.max(8, right),
@@ -562,27 +480,10 @@ function MiniPlayer({
     };
   }, [clearVolumeHoverTimer, eqOpen, speedOpen, volumeOpen]);
 
-  const [scrubRatio, setScrubRatio] = useState<number | null>(null);
-  const activeProgress = scrubRatio !== null ? scrubRatio : secondProgress;
-
-  // anything other than the regular one-step tick (a new track, a seek, a
-  // repeat) is a jump: it eases out quickly instead of crawling linearly.
-  // This is kept in refs rather than state: setting state during render made
-  // React render the whole player bar a second time on every position tick.
-  const shownProgressRef = useRef(secondProgress);
-  const progressJumpedRef = useRef(false);
-  if (secondProgress !== shownProgressRef.current) {
-    const delta = secondProgress - shownProgressRef.current;
-    const step = durationMs > 0 ? PROGRESS_STEP_MS / durationMs : 0;
-    progressJumpedRef.current = delta < 0 || delta > step * 1.5;
-    shownProgressRef.current = secondProgress;
-  }
-  const progressJumped = progressJumpedRef.current;
-
   return (
     <div
       ref={miniPlayerRootRef}
-      className="relative h-[64px] w-full select-none"
+      className="relative h-[84px] w-full select-none"
     >
       <AnimatePresence>
         {volumeOpen && (
@@ -593,7 +494,7 @@ function MiniPlayer({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.96, pointerEvents: "none" }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute bottom-[52px] z-[99] w-[46px] rounded-[11px] p-[4px] bg-fill backdrop-blur-2xl backdrop-saturate-150 prevent-seek"
+            className="absolute bottom-[88px] z-[99] w-[46px] rounded-[11px] p-[4px] bg-fill backdrop-blur-2xl backdrop-saturate-150 prevent-seek"
             style={volumePopupStyle}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseEnter={clearVolumeHoverTimer}
@@ -615,7 +516,7 @@ function MiniPlayer({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.985 }}
             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute bottom-[74px] z-[92] w-[300px] rounded-[14px] p-[16px] bg-fill backdrop-blur-2xl backdrop-saturate-150 prevent-seek"
+            className="absolute bottom-[92px] z-[92] w-[300px] rounded-[14px] p-[16px] bg-fill backdrop-blur-2xl backdrop-saturate-150 prevent-seek"
             style={speedPopupStyle}
             onPointerDown={(e) => e.stopPropagation()}
           >
@@ -633,7 +534,7 @@ function MiniPlayer({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.985 }}
             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute bottom-[74px] z-[92] w-[300px] rounded-[14px] p-[16px] bg-fill backdrop-blur-2xl backdrop-saturate-150 prevent-seek"
+            className="absolute bottom-[92px] z-[92] w-[300px] rounded-[14px] p-[16px] bg-fill backdrop-blur-2xl backdrop-saturate-150 prevent-seek"
             style={eqPopupStyle}
             onPointerDown={(e) => e.stopPropagation()}
           >
@@ -643,7 +544,7 @@ function MiniPlayer({
       </AnimatePresence>
 
       <div
-        className={`relative h-[64px] w-full overflow-hidden cursor-pointer ${
+        className={`relative h-[84px] w-full overflow-hidden ${
           usesRoundedStyle
             ? "rounded-full border-[0.5px] border-border-tertiary bg-bg-primary"
             : embedded
@@ -654,103 +555,10 @@ function MiniPlayer({
                 }`
               : "rounded-3xl border-[0.5px] border-border-tertiary bg-bg-primary"
         }`}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          const target = e.target as Element | null;
-          if (
-            !target ||
-            target.closest?.(
-              "button, a, input, [role='button'], [role='slider'], .prevent-seek",
-            )
-          ) {
-            return;
-          }
-          const card = e.currentTarget;
-          const rect = card.getBoundingClientRect();
-          if (!rect.width || !durationMs) return;
-
-          const calcRatio = (clientX: number) =>
-            Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-
-          const initialRatio = calcRatio(e.clientX);
-          setScrubRatio(initialRatio);
-
-          const onMove = (ev: PointerEvent) => {
-            const r = calcRatio(ev.clientX);
-            setScrubRatio(r);
-          };
-
-          const onUp = (ev: PointerEvent) => {
-            const finalRatio = calcRatio(ev.clientX);
-            setScrubRatio(null);
-            playerEngine.seek(finalRatio * durationMs, false, { fast: true });
-            window.removeEventListener("pointermove", onMove);
-            window.removeEventListener("pointerup", onUp);
-            window.removeEventListener("pointercancel", onUp);
-          };
-
-          window.addEventListener("pointermove", onMove);
-          window.addEventListener("pointerup", onUp);
-          window.addEventListener("pointercancel", onUp);
-        }}
       >
-        {usesBackgroundProgress && (
+        <div className="relative grid h-full grid-cols-[300px_minmax(0,1fr)_288px] pointer-events-none">
           <div
-            className="absolute inset-0 z-0 pointer-events-none origin-left"
-            style={{
-              backgroundColor: accentColor,
-              transform: `scaleX(${activeProgress})`,
-              transition:
-                scrubRatio !== null
-                  ? "none"
-                  : isPlaying && !progressJumped
-                    ? `transform ${PROGRESS_STEP_MS}ms linear`
-                    : PROGRESS_JUMP_TRANSITION,
-            }}
-          />
-        )}
-
-        {embedded ? null : (
-          <div
-            className={`absolute z-30 prevent-seek ${
-              usesRoundedStyle
-                ? "left-[18px] right-[18px] bottom-[2px]"
-                : "left-[8px] right-[8px] bottom-[2px]"
-            }`}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <TimelineSlider
-              positionMs={player.positionMs}
-              durationMs={durationMs}
-              onSeek={(pos) => playerEngine.seek(pos, false, { fast: true })}
-              size="xs"
-              fillColor={accentColorSolid || undefined}
-              fillClassName={
-                !accentColorSolid
-                  ? isLight
-                    ? "bg-text-primary"
-                    : "bg-white"
-                  : undefined
-              }
-              trackBg={
-                isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(255, 255, 255, 0.15)"
-              }
-              trackActiveBg={
-                isLight ? "rgba(0, 0, 0, 0.16)" : "rgba(255, 255, 255, 0.32)"
-              }
-              className="!h-[14px]"
-            />
-          </div>
-        )}
-        <div
-          className={`relative grid h-full pointer-events-none ${
-            embedded
-              ? "grid-cols-[280px_minmax(0,1fr)_260px]"
-              : "grid-cols-[286px_minmax(0,1fr)]"
-          } ${!usesRoundedStyle && !embedded ? "pb-[4px]" : ""}`}
-        >
-          <div
-            className="flex h-full items-center gap-[16px] px-[18px] pt-[1px] pointer-events-none cursor-default"
+            className="flex h-full items-center gap-[12px] px-[16px] pointer-events-none cursor-default"
             onContextMenu={handleTrackContextMenu}
           >
             {trackMenuPosition && (
@@ -770,7 +578,7 @@ function MiniPlayer({
               role="button"
               tabIndex={0}
               aria-label="Open player"
-              className={`relative h-[38px] w-[38px] shrink-0 overflow-hidden rounded-control bg-bg-elevated cursor-pointer pointer-events-auto prevent-seek ${
+              className={`relative h-[56px] w-[56px] shrink-0 overflow-hidden rounded-[10px] bg-bg-elevated cursor-pointer pointer-events-auto prevent-seek ${
                 coverUrl && !isCoverLoaded ? "animate-pulse" : ""
               }`}
               onClick={onFullscreenOpen}
@@ -780,21 +588,21 @@ function MiniPlayer({
                 key={coverUrl}
                 src={coverUrl}
                 alt="Track artwork"
-                width={38}
-                height={38}
+                width={56}
+                height={56}
                 priority
                 draggable={false}
                 onLoad={(e) => {
-                  extractAccentColor(e.currentTarget as HTMLImageElement);
+                  applyAccentColor(e.currentTarget as HTMLImageElement);
                 }}
-                className="h-[38px] w-[38px] object-cover rounded-control"
+                className="h-[56px] w-[56px] object-cover rounded-[10px]"
               />
             </div>
             <div className="flex min-w-0 flex-col pointer-events-none">
               <p
-                className="m-0 truncate text-[16px] font-[400] text-text-primary flex items-center gap-[6px] pointer-events-none"
+                className="m-0 truncate text-[17px] font-[500] text-text-primary flex items-center gap-[6px] pointer-events-none"
                 style={{
-                  lineHeight: "18px",
+                  lineHeight: "19px",
                   letterSpacing: "0",
                 }}
               >
@@ -857,67 +665,23 @@ function MiniPlayer({
                 onClick={handleLikeToggle}
                 style={{ cursor: "pointer" }}
               >
-                {isLiked ? <HeartFill size={20} /> : <HeartLine size={20} />}
+                {isLiked ? <HeartFill size={22} /> : <HeartLine size={22} />}
               </button>
             )}
           </div>
 
-          <div
-            className={`flex h-full items-center pl-[10px] pr-[18px] pointer-events-none ${
-              embedded ? "col-start-3" : ""
-            }`}
-          >
+          <div className="col-start-3 row-start-1 flex h-full min-w-0 items-center pl-[10px] pr-[18px] pointer-events-none">
             <div
-              className={`ml-auto flex items-center gap-[2px] rounded-lg p-[3px] pointer-events-auto prevent-seek cursor-default ${
-                hasPageBackdrop
-                  ? "bg-fill-subtle"
-                  : "bg-[#ebebed] dark:bg-[#141414]"
-              }`}
+              className="ml-auto flex items-center gap-[2px] pointer-events-auto prevent-seek cursor-default"
               onPointerDown={(e) => e.stopPropagation()}
             >
-              <button
-                type="button"
-                aria-label="Shuffle"
-                title={
-                  player.shuffle
-                    ? t("player.shuffle_on")
-                    : t("player.shuffle_off")
-                }
-                className={`${iconButtonClass} ${
-                  player.shuffle ? activeToggleClass : ""
-                }`}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => playerEngine.setShuffle(!player.shuffle)}
-              >
-                <Shuffle size={18} weight="Outline" />
-              </button>
-              <button
-                type="button"
-                aria-label={repeatLabel}
-                title={repeatLabel}
-                className={`${iconButtonClass} ${
-                  player.repeat !== "off" ? activeToggleClass : ""
-                }`}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() =>
-                  playerEngine.setRepeat(
-                    // radio has no repeat-all: it refills instead of looping
-                    nextRepeatMode(
-                      player.repeat,
-                      isRadioContext(player.playbackContext),
-                    ),
-                  )
-                }
-              >
-                {repeatIcon}
-              </button>
               <button
                 ref={eqToggleRef}
                 type="button"
                 aria-label={t("player.equalizer")}
                 title={t("player.equalizer")}
                 className={`${iconButtonClass} ${
-                  eqOpen || eqActive ? "bg-white/[0.09] text-white" : ""
+                  eqOpen || eqActive ? activeToggleClass : ""
                 }`}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
@@ -1017,6 +781,23 @@ function MiniPlayer({
                   <VolumeLoud size={18} weight="Outline" />
                 )}
               </button>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(volumeLevel * 100)}
+                aria-label={t("player.volume") || "Volume"}
+                title={`${t("player.volume") || "Volume"}: ${Math.round(volumeLevel * 100)}%`}
+                onChange={(e) =>
+                  playerEngine.setVolume(
+                    toVolumeGain(Number(e.target.value) / 100),
+                  )
+                }
+                onPointerDown={(e) => e.stopPropagation()}
+                className="prevent-seek h-[14px] w-[68px] shrink-0 cursor-pointer bg-transparent"
+                style={{ accentColor: accentColorSolid }}
+              />
               <button
                 type="button"
                 aria-label={t("player.open_player")}
@@ -1032,10 +813,6 @@ function MiniPlayer({
               >
                 <MaximizeSquare3 size={18} weight="Outline" />
               </button>
-              <span
-                className="mx-[3px] h-[16px] w-px bg-border-toolbox-divider"
-                aria-hidden="true"
-              />
               <button
                 type="button"
                 aria-label={t("player.queue")}
@@ -1054,72 +831,142 @@ function MiniPlayer({
               </button>
             </div>
           </div>
-        </div>
 
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div
-            className="pointer-events-auto flex items-center gap-[8px] prevent-seek cursor-default"
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              aria-label="Previous track"
-              className={`${iconButtonClass} text-text-secondary hover:text-text-primary`}
+          <div className="col-start-2 row-start-1 flex h-full min-w-0 items-center justify-center px-1 pointer-events-none">
+            <div
+              className="pointer-events-auto flex w-full min-w-0 max-w-[620px] flex-col items-center gap-[4px] prevent-seek cursor-default"
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => {
-                void playerEngine.skipPrevious();
-              }}
-              style={{ cursor: "pointer" }}
             >
-              <SkipPrevious size={18} weight="Bold" />
-            </button>
-            <button
-              type="button"
-              aria-label={isPlaying ? "Pause" : "Play"}
-              className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full bg-btn-primary-bg text-btn-primary-text transition-all duration-150 ease-out hover:scale-105 active:scale-[0.96] border-none cursor-pointer shadow-sm"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => {
-                void playerEngine.togglePlayPause();
-              }}
-              style={{ cursor: "pointer" }}
-            >
-              {/* keep the morph icon mounted through the loading state
+              <div className="flex items-center gap-[6px]">
+                <button
+                  type="button"
+                  aria-label="Shuffle"
+                  title={
+                    player.shuffle
+                      ? t("player.shuffle_on")
+                      : t("player.shuffle_off")
+                  }
+                  className={`${iconButtonClass} ${
+                    player.shuffle ? activeToggleClass : ""
+                  }`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => playerEngine.setShuffle(!player.shuffle)}
+                >
+                  <Shuffle size={18} weight="Outline" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Previous track"
+                  className={`${iconButtonClass} text-text-secondary hover:text-text-primary`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => {
+                    void playerEngine.skipPrevious();
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
+                  <SkipPrevious size={18} weight="Bold" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={isPlaying ? "Pause" : "Play"}
+                  className="inline-flex h-[40px] w-[40px] items-center justify-center rounded-full transition-all duration-150 ease-out hover:scale-105 active:scale-[0.96] border-none cursor-pointer shadow-sm"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => {
+                    void playerEngine.togglePlayPause();
+                  }}
+                  style={{
+                    backgroundColor: accentColorSolid,
+                    color: isLight ? "#ffffff" : "#0a0a0a",
+                    cursor: "pointer",
+                  }}
+                >
+                  {/* keep the morph icon mounted through the loading state
                   (spinner overlays it) — swapping it out on "loading" would
                   remount MorphIcon when the track starts, which skips the
                   play -> pause morph animation. */}
-              <span className="relative flex h-[16px] w-[16px] items-center justify-center">
-                <span
-                  className={`absolute inset-0 flex items-center justify-center ${
-                    isLoading ? "opacity-0" : ""
-                  } transition-transform ${
-                    isPlaying ? "" : "translate-x-[0.5px]"
-                  }`}
+                  <span className="relative flex h-[16px] w-[16px] items-center justify-center">
+                    <span
+                      className={`absolute inset-0 flex items-center justify-center ${
+                        isLoading ? "opacity-0" : ""
+                      } transition-transform ${
+                        isPlaying ? "" : "translate-x-[0.5px]"
+                      }`}
+                    >
+                      <PlayerMorphIcon
+                        icon={isPlaying ? ICON_PAUSE : ICON_PLAY}
+                        size={16}
+                      />
+                    </span>
+                    {isLoading && (
+                      <span
+                        className="absolute h-[16px] w-[16px] animate-spin rounded-full border-[2px] border-current border-t-transparent"
+                        aria-label="Loading playback"
+                      />
+                    )}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next track"
+                  className={`${iconButtonClass} text-text-secondary hover:text-text-primary`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => {
+                    void playerEngine.skipNext();
+                  }}
+                  style={{ cursor: "pointer" }}
                 >
-                  <PlayerMorphIcon
-                    icon={isPlaying ? ICON_PAUSE : ICON_PLAY}
-                    size={16}
-                  />
+                  <SkipNext size={18} weight="Bold" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={repeatLabel}
+                  title={repeatLabel}
+                  className={`${iconButtonClass} ${
+                    player.repeat !== "off" ? activeToggleClass : ""
+                  }`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() =>
+                    playerEngine.setRepeat(
+                      // radio has no repeat-all: it refills instead of looping
+                      nextRepeatMode(
+                        player.repeat,
+                        isRadioContext(player.playbackContext),
+                      ),
+                    )
+                  }
+                >
+                  {repeatIcon}
+                </button>
+              </div>
+              <div className="flex w-full items-center gap-[12px]">
+                <span className="w-[36px] shrink-0 text-right text-[12px] font-[400] tabular-nums text-text-tertiary">
+                  {formatPlaybackTime(player.positionMs)}
                 </span>
-                {isLoading && (
-                  <span
-                    className="absolute h-[16px] w-[16px] animate-spin rounded-full border-[2px] border-current border-t-transparent"
-                    aria-label="Loading playback"
-                  />
-                )}
-              </span>
-            </button>
-            <button
-              type="button"
-              aria-label="Next track"
-              className={`${iconButtonClass} text-text-secondary hover:text-text-primary`}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => {
-                void playerEngine.skipNext();
-              }}
-              style={{ cursor: "pointer" }}
-            >
-              <SkipNext size={18} weight="Bold" />
-            </button>
+                <TimelineSlider
+                  positionMs={player.positionMs}
+                  durationMs={durationMs}
+                  onSeek={(pos) =>
+                    playerEngine.seek(pos, false, { fast: true })
+                  }
+                  size="xs"
+                  fillColor={accentColorSolid || undefined}
+                  trackBg={
+                    isLight
+                      ? "rgba(0, 0, 0, 0.10)"
+                      : "rgba(255, 255, 255, 0.16)"
+                  }
+                  trackActiveBg={
+                    isLight
+                      ? "rgba(0, 0, 0, 0.18)"
+                      : "rgba(255, 255, 255, 0.30)"
+                  }
+                  className="flex-1"
+                />
+                <span className="w-[36px] shrink-0 text-[12px] font-[400] tabular-nums text-text-tertiary">
+                  {formatPlaybackTime(durationMs)}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

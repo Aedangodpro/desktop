@@ -358,7 +358,7 @@ export default function AppFrame({ children }: AppFrameProps) {
               "flex-1 min-w-0 flex flex-col relative h-full overflow-hidden [--page-inset-top:56px]",
               "rounded-item",
               shouldShowMiniPlayer && hasPageBackdrop
-                ? "[--page-inset-bottom:64px] [--floating-inset-bottom:70px]"
+                ? "[--page-inset-bottom:84px] [--floating-inset-bottom:90px]"
                 : "[--page-inset-bottom:0px] [--floating-inset-bottom:0px]",
             )}
           >
@@ -407,7 +407,7 @@ export default function AppFrame({ children }: AppFrameProps) {
               ref={miniPlayerContainerRef}
               // Above the right drawer (z-50) so the player's volume/speed/queue
               // popups, which live in this stacking context, aren't hidden by it.
-              className={`relative z-[55] w-full shrink-0 ${hasPageBackdrop ? "-mt-[70px]" : ""}`}
+              className={`relative z-[55] w-full shrink-0 ${hasPageBackdrop ? "-mt-[90px]" : ""}`}
             >
               <MiniPlayer
                 embedded
