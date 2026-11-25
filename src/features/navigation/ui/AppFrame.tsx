@@ -24,6 +24,7 @@ import {
   FullscreenPlayer,
   playerEngine,
   MiniPlayer,
+  FpsOverlay,
   usePlayerStore,
   useGlassBlur,
 } from "@/features/player";
@@ -455,6 +456,7 @@ export default function AppFrame({ children }: AppFrameProps) {
       <SearchOverlay open={searchOpen} popupRef={searchPopupRef} />
 
       <AppOverlays />
+      <FpsOverlay />
       {isFullscreenPlayer && (
         <div
           data-theme="dark"

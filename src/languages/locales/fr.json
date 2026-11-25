@@ -697,6 +697,10 @@
       "label": "Langue",
       "description": "Choisissez la langue de l'interface"
     },
+    "fps_overlay": {
+      "title": "Superposition de performance",
+      "description": "Affiche les FPS en direct, le temps de frame p95, la fréquence de rafraîchissement détectée et le mode visuel actif."
+    },
     "autoplay_similar": {
       "title": "Lecture automatique de titres similaires",
       "description": "Ajoute automatiquement des titres similaires quand la file d'attente se termine."

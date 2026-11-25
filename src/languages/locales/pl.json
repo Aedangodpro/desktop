@@ -597,6 +597,10 @@
       "label": "Język",
       "description": "Wybierz język interfejsu"
     },
+    "fps_overlay": {
+      "title": "Nakładka wydajności",
+      "description": "Pokazuje bieżące FPS, czas klatki p95, wykrytą częstotliwość odświeżania i aktywny tryb wizualny."
+    },
     "autoplay_similar": {
       "title": "Automatycznie odtwarzaj podobne utwory",
       "description": "Automatycznie dodaje podobne utwory, gdy kolejka się skończy."

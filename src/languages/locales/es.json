@@ -591,6 +591,10 @@
       "label": "Idioma",
       "description": "Selecciona el idioma de la interfaz"
     },
+    "fps_overlay": {
+      "title": "Superposición de rendimiento",
+      "description": "Muestra los FPS, el tiempo de fotograma p95, la frecuencia de actualización detectada y el modo visual activo."
+    },
     "autoplay_similar": {
       "title": "Reproducir canciones similares automáticamente",
       "description": "Añade canciones similares de forma automática cuando finalice la cola."

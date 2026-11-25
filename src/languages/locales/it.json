@@ -593,6 +593,10 @@
       "label": "Lingua",
       "description": "Seleziona la lingua dell'interfaccia"
     },
+    "fps_overlay": {
+      "title": "Overlay prestazioni",
+      "description": "Mostra FPS in tempo reale, tempo frame p95, frequenza di aggiornamento rilevata e modalità visiva attiva."
+    },
     "autoplay_similar": {
       "title": "Riproduci automaticamente brani simili",
       "description": "Aggiungi automaticamente brani simili quando la coda termina."

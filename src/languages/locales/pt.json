@@ -656,6 +656,10 @@
       "label": "Idioma",
       "description": "Selecione o idioma da interface"
     },
+    "fps_overlay": {
+      "title": "Sobreposição de desempenho",
+      "description": "Mostra FPS ao vivo, tempo de quadro p95, taxa de atualização detectada e modo visual ativo."
+    },
     "autoplay_similar": {
       "title": "Reproduzir faixas similares automaticamente",
       "description": "Adiciona músicas similares automaticamente quando a sua fila termina."

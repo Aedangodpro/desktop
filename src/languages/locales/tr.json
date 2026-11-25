@@ -593,6 +593,10 @@
       "label": "Dil",
       "description": "Arayüz dilini seç"
     },
+    "fps_overlay": {
+      "title": "Performans katmanı",
+      "description": "Canlı FPS, p95 kare süresi, algılanan yenileme hızı ve etkin görsel modu gösterir."
+    },
     "autoplay_similar": {
       "title": "Benzer parçaları otomatik çal",
       "description": "Sıra bittiğinde benzer şarkıları otomatik olarak ekler."

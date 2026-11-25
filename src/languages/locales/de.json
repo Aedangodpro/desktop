@@ -538,6 +538,10 @@
       "label": "Sprache",
       "description": "Wähle die Sprache der Oberfläche"
     },
+    "fps_overlay": {
+      "title": "Leistungs-Overlay",
+      "description": "Zeigt Live-FPS, p95-Framezeit, erkannte Bildwiederholrate und den aktiven Visualisierungsmodus."
+    },
     "autoplay_similar": {
       "title": "Ähnliche Titel automatisch abspielen",
       "description": "Fügt automatisch ähnliche Titel hinzu, wenn deine Warteschlange endet."

@@ -668,6 +668,10 @@
       "label": "Bahasa",
       "description": "Pilih bahasa antarmuka"
     },
+    "fps_overlay": {
+      "title": "Overlay performa",
+      "description": "Menampilkan FPS langsung, waktu frame p95, refresh rate terdeteksi, dan mode visual aktif."
+    },
     "autoplay_similar": {
       "title": "Putar otomatis lagu serupa",
       "description": "Tambahkan lagu serupa secara otomatis saat antreanmu habis."

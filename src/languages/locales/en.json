@@ -791,6 +791,10 @@
       "label": "Language",
       "description": "Select the interface language"
     },
+    "fps_overlay": {
+      "title": "Performance overlay",
+      "description": "Show live FPS, p95 frame time, detected refresh rate and the active visual mode."
+    },
     "autoplay_similar": {
       "title": "Autoplay similar tracks",
       "description": "Automatically add similar songs when your queue ends."

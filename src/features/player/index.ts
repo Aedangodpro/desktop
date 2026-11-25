@@ -29,6 +29,8 @@ export {
   type FullscreenPlayerProps,
 } from "./ui/FullscreenPlayer";
 export { PlayerUiElements } from "./ui/PlayerUiElements";
+export { FpsOverlay } from "./ui/FpsOverlay";
+export { useFpsOverlayStore } from "./store/fpsOverlayStore";
 export { KawarpWrapper } from "./ui/KawarpWrapper";
 export { default as SongCard, type SongCardProps } from "./ui/SongCard";
 export {
