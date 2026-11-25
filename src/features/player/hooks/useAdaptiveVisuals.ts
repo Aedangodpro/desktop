@@ -5,6 +5,7 @@ import {
   useVisualModeStore,
 } from "../store/visualModeStore";
 import { sampleFrameStrain } from "./useFrameStrain";
+import { displayRefreshRate } from "./useDisplayRefreshRate";
 
 const SETTLE_MS = 1500;
 const STEP_COOLDOWN_MS = 4000;
@@ -29,11 +30,15 @@ export function useAdaptiveVisuals(active: boolean) {
       });
 
     const run = async () => {
+      // One measurement per session, shared with every surface that paces
+      // itself; the strain threshold is relative to the panel, not to 60 Hz.
+      const displayHz = await displayRefreshRate();
+      if (cancelled) return;
       let strikes = 0;
       while (!cancelled) {
         await wait(SETTLE_MS);
         if (cancelled) return;
-        if (!(await sampleFrameStrain())) {
+        if (!(await sampleFrameStrain(undefined, displayHz))) {
           strikes = 0;
           continue;
         }

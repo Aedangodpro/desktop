@@ -88,6 +88,25 @@ What changed:
 The renderer's own JS self time in a 3 s profile fell from ~23 ms to ~13 ms; the
 remaining cost is canvas rasterisation of the text bitmaps, not scripting.
 
+## High-refresh displays
+
+Two per-frame costs grew with the panel instead of with what changes on screen:
+
+- **The live lyric line was re-rasterised every frame.** The bitmap key in
+  `canvas/sceneLines.ts` was the rAF timestamp, so a 200 Hz panel rebuilt the
+  karaoke line's text bitmap 200 times a second. The key is now bucketed at
+  `LIVE_BITMAP_BUCKET_MS = 8`: at most 125 rebuilds a second, about 100 on a
+  200 Hz panel, and unchanged at 60 Hz where frames are already further apart.
+  The canvas still presents every refresh — only the expensive text raster is
+  reused between frames, and the sweep edge moves under a pixel in 8 ms.
+- **The adaptive quality guard was blind above 60 Hz.** `isStrained` compared
+  the median frame time with a fixed 24 ms, so a 200 Hz panel running at
+  80–120 fps looked healthy next to it and never stepped the effects down —
+  which is exactly the case that reads as laggy. The steady-cadence threshold
+  is now `min(24 ms, 1.5 × refresh interval)` (7.5 ms at 200 Hz), using the
+  panel rate from `useDisplayRefreshRate()`. The late-frame test keeps its
+  60 Hz floor, so an occasional doubled refresh is still not a downgrade.
+
 ## React and background work
 
 - Timeline updates arrive from the audio element's `timeupdate` (roughly 4 per

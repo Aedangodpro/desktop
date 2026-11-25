@@ -23,6 +23,16 @@ describe("adaptive visual step-down", () => {
     expect(isStrained(deltas)).toBe(true);
   });
 
+  it("flags a steady cadence that misses the panel's budget", () => {
+    // 8.5 ms is ~117 fps: not a hitch, but far below a 200 Hz panel and the
+    // case that used to pass as healthy because 8.5 ms is well under 24 ms.
+    expect(isStrained(frames(200 / 1.7), 200)).toBe(true);
+  });
+
+  it("leaves a display that holds its cadence alone", () => {
+    expect(isStrained(frames(200 / 1.1), 200)).toBe(false);
+  });
+
   it("still catches a steady but slow cadence", () => {
     expect(isStrained(frames(20))).toBe(true);
   });

@@ -48,6 +48,20 @@ export function paintLine(frame: SceneFrame, layout: LineLayout) {
   };
 }
 
+/**
+ * How often a live (karaoke) line may be rasterised into a new bitmap. The
+ * canvas still presents every display frame; only the text bitmap that carries
+ * the sweep is rebuilt at most once per bucket. On a 200 Hz panel that is ~100
+ * rasterisations per second instead of 200, and on a 60 Hz panel nothing
+ * changes because every frame is already more than 8 ms apart. The sweep edge
+ * moves well under a pixel in 8 ms, so the smaller cadence is not visible.
+ */
+export const LIVE_BITMAP_BUCKET_MS = 8;
+
+export function liveBitmapKey(now: number, version: number): string {
+  return `live:${version}:${Math.floor(now / LIVE_BITMAP_BUCKET_MS)}`;
+}
+
 function litState(layout: LineLayout, timeMs: number): string {
   if (timeMs >= lineExitMs(layout.line)) return "done";
   // Counting beats `tokens.filter(...).length`: the key is built for every
@@ -74,7 +88,7 @@ export function visibleLines(frame: SceneFrame): VisibleLine[] {
       layout,
       top: moving ? exact : Math.round(exact * dpr) / dpr,
       key: live
-        ? `live:${now}`
+        ? liveBitmapKey(now, scene.version)
         : `still:${scene.version}:${litState(layout, timeMs)}`,
       live,
       fading: live && timeMs >= lineExitMs(layout.line),

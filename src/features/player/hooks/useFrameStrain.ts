@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { isWindowVisible } from "@/shared/utils/windowVisibility";
+import {
+  FALLBACK_REFRESH_HZ,
+  useDisplayRefreshRate,
+} from "./useDisplayRefreshRate";
 
 const SAMPLE_MS = 3000;
 const PAUSE_MS = 10000;
@@ -13,17 +17,32 @@ const SLOW_MEDIAN_MS = 24;
 // doubled refresh — and that used to read as a strained GPU and step the
 // visuals down mid-song for no reason.
 const MIN_BASELINE_MS = 1000 / 60;
+// A steady cadence is compared with the display's own interval, not a fixed
+// 60 Hz one: 1.5x the refresh is 25 ms at 60 Hz and 7.5 ms at 200 Hz. Without
+// this a 200 Hz panel that settles at 80–120 fps has a healthy-looking median
+// next to 24 ms and never steps the effects down, which is exactly the case
+// that feels laggy.
+const SLOW_MEDIAN_FACTOR = 1.5;
 
-export function isStrained(deltas: number[]): boolean {
+export function isStrained(
+  deltas: number[],
+  displayHz: number = FALLBACK_REFRESH_HZ,
+): boolean {
   if (deltas.length < 30) return false;
   const sorted = [...deltas].sort((a, b) => a - b);
   const frame = sorted[Math.floor(sorted.length * 0.1)];
   const median = sorted[Math.floor(sorted.length * 0.5)];
   const baseline = Math.max(frame, MIN_BASELINE_MS);
+  const refreshMs =
+    1000 /
+    (Number.isFinite(displayHz) && displayHz > 0
+      ? displayHz
+      : FALLBACK_REFRESH_HZ);
+  const slowMedian = Math.min(SLOW_MEDIAN_MS, refreshMs * SLOW_MEDIAN_FACTOR);
   // A steady but slow cadence (every frame taking 50ms, say) has no late
   // frames relative to its own pace, so jitter alone never flags the devices
   // that most need the cheaper mode.
-  if (median > SLOW_MEDIAN_MS) return true;
+  if (median > slowMedian) return true;
   const late = deltas.filter((delta) => delta > baseline * LATE_FACTOR).length;
   return late / deltas.length > LATE_SHARE;
 }
@@ -35,6 +54,7 @@ export function isStrained(deltas: number[]): boolean {
  */
 export function sampleFrameStrain(
   sampleMs: number = SAMPLE_MS,
+  displayHz: number = FALLBACK_REFRESH_HZ,
 ): Promise<boolean> {
   if (typeof window === "undefined" || !isWindowVisible()) {
     return Promise.resolve(false);
@@ -57,7 +77,7 @@ export function sampleFrameStrain(
         frameId = requestAnimationFrame(measure);
         return;
       }
-      finish(isStrained(deltas));
+      finish(isStrained(deltas, displayHz));
     };
     guard = window.setTimeout(() => finish(false), sampleMs * 3 + 500);
     frameId = requestAnimationFrame(measure);
@@ -66,6 +86,7 @@ export function sampleFrameStrain(
 
 export function useFrameStrain(active: boolean): boolean {
   const [strained, setStrained] = useState(false);
+  const displayHz = useDisplayRefreshRate();
 
   useEffect(() => {
     if (!active) return;
@@ -83,7 +104,7 @@ export function useFrameStrain(active: boolean): boolean {
         frameId = requestAnimationFrame(measure);
         return;
       }
-      strikes = isStrained(deltas) ? strikes + 1 : 0;
+      strikes = isStrained(deltas, displayHz) ? strikes + 1 : 0;
       setStrained(strikes >= STRIKES_TO_FLAG);
       timer = window.setTimeout(begin, PAUSE_MS);
     };
@@ -104,7 +125,7 @@ export function useFrameStrain(active: boolean): boolean {
       cancelAnimationFrame(frameId);
       window.clearTimeout(timer);
     };
-  }, [active]);
+  }, [active, displayHz]);
 
   return active && strained;
 }
