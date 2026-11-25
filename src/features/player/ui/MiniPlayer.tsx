@@ -30,7 +30,6 @@ import {
 } from "@/features/library/hooks";
 import { usePlayerStore } from "../store/playerStore";
 import { toVolumeGain, toVolumeLevel } from "../engine/volume";
-import { VolumeColumn } from "./VolumeColumn";
 import { SpeedPitchPicker } from "./SpeedPitchPicker";
 import { EqualizerPicker } from "./EqualizerPicker";
 import { isEqActive } from "../engine/equalizer";
@@ -167,6 +166,105 @@ function extractAccentColor(
   return `rgb(${solidR}, ${solidG}, ${solidB})`;
 }
 
+interface VolumeSliderProps {
+  accentColor: string;
+  trackColor: string;
+}
+
+function VolumeSlider({ accentColor, trackColor }: VolumeSliderProps) {
+  const { t } = useTranslation();
+  const volume = usePlayerStore((state) => state.volume);
+  const level = toVolumeLevel(volume);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [dragLevel, setDragLevel] = useState<number | null>(null);
+  const shownLevel = dragLevel ?? level;
+  const percent = Math.round(shownLevel * 100);
+
+  const apply = (next: number) => {
+    const clamped = Math.min(1, Math.max(0, next));
+    playerEngine.setVolume(toVolumeGain(clamped));
+    return clamped;
+  };
+
+  const levelAt = (clientX: number) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return shownLevel;
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragLevel(apply(levelAt(event.clientX)));
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragLevel === null) return;
+    setDragLevel(apply(levelAt(event.clientX)));
+  };
+
+  const handlePointerUp = () => {
+    if (dragLevel === null) return;
+    setDragLevel(null);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = 0.05;
+    const next =
+      event.key === "ArrowRight" || event.key === "ArrowUp"
+        ? shownLevel + step
+        : event.key === "ArrowLeft" || event.key === "ArrowDown"
+          ? shownLevel - step
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? 1
+              : null;
+    if (next === null) return;
+    event.preventDefault();
+    apply(next);
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      role="slider"
+      tabIndex={0}
+      aria-label={t("player.volume") || "Volume"}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={percent}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onWheel={(event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        apply(shownLevel + (event.deltaY < 0 ? 0.04 : -0.04));
+      }}
+      onKeyDown={handleKeyDown}
+      className="prevent-seek relative flex h-4 w-[88px] shrink-0 cursor-pointer touch-none items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-text-primary/30 @max-[1120px]:w-[72px] @max-[760px]:hidden"
+    >
+      <div
+        className="relative h-[3px] w-full rounded-full"
+        style={{ backgroundColor: trackColor }}
+      >
+        <div
+          className="absolute inset-y-0 left-0 rounded-full"
+          style={{ width: `${percent}%`, backgroundColor: accentColor }}
+        />
+        <div
+          className="absolute top-1/2 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ left: `${percent}%`, backgroundColor: accentColor }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export interface MiniPlayerProps {
   onQueueOpenChange?: (open: boolean) => void;
   onQueueToggle?: () => void;
@@ -230,11 +328,6 @@ function MiniPlayer({
     };
   }, [coverUrl, isLight, applyAccentColor]);
 
-  const [volumeOpen, setVolumeOpen] = useState(false);
-  const volumePinnedRef = useRef(false);
-  const [volumePopupStyle, setVolumePopupStyle] = useState<React.CSSProperties>(
-    { bottom: 52 },
-  );
   const [speedOpen, setSpeedOpen] = useState(false);
   const [speedPopupStyle, setSpeedPopupStyle] = useState<React.CSSProperties>(
     {},
@@ -242,16 +335,11 @@ function MiniPlayer({
   const [eqOpen, setEqOpen] = useState(false);
   const [eqPopupStyle, setEqPopupStyle] = useState<React.CSSProperties>({});
   const miniPlayerRootRef = useRef<HTMLDivElement>(null);
-  const volumePopupRef = useRef<HTMLDivElement>(null);
-  const volumeToggleRef = useRef<HTMLButtonElement>(null);
   const speedPopupRef = useRef<HTMLDivElement>(null);
   const speedToggleRef = useRef<HTMLButtonElement>(null);
   const eqPopupRef = useRef<HTMLDivElement>(null);
   const eqToggleRef = useRef<HTMLButtonElement>(null);
-  const volumeHoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const [isVolumeDragging, setIsVolumeDragging] = useState(false);
+  const restoreVolumeRef = useRef(0.7);
 
   const currentTrack = player.currentTrack;
   const volumeLevel = toVolumeLevel(player.volume);
@@ -317,8 +405,8 @@ function MiniPlayer({
   // off -> all (loop the whole queue/playlist) -> one (loop the track) -> off
   const repeatIcon = useMemo(() => {
     if (player.repeat === "one")
-      return <RepeatOne size={18} weight="Outline" />;
-    return <Repeat size={18} weight="Outline" />;
+      return <RepeatOne size={20} weight="Outline" />;
+    return <Repeat size={20} weight="Outline" />;
   }, [player.repeat]);
   const repeatLabel = t(`player.repeat_${player.repeat}`);
 
@@ -328,46 +416,8 @@ function MiniPlayer({
   const iconButtonClass =
     "inline-flex h-[32px] w-[32px] items-center justify-center rounded-control text-text-secondary transition-colors duration-150 hover:bg-black/[0.05] dark:hover:bg-white/[0.09] hover:text-text-primary active:scale-[0.96] border-none bg-transparent cursor-pointer";
 
-  const clearVolumeHoverTimer = useCallback(() => {
-    if (volumeHoverCloseTimerRef.current) {
-      clearTimeout(volumeHoverCloseTimerRef.current);
-      volumeHoverCloseTimerRef.current = null;
-    }
-  }, []);
-
-  const updateVolumePopupPosition = useCallback(() => {
-    const toggle = volumeToggleRef.current;
-    const root = miniPlayerRootRef.current;
-    if (!toggle || !root) return;
-    const toggleRect = toggle.getBoundingClientRect();
-    const rootRect = root.getBoundingClientRect();
-
-    const popupW = 46;
-    const btnW = toggleRect.width;
-    const right = rootRect.right - toggleRect.right + (btnW - popupW) / 2;
-    const bottom = rootRect.height + 2;
-
-    setVolumePopupStyle({
-      right: Math.max(8, right),
-      bottom: Math.round(bottom),
-    });
-  }, []);
-
-  const handleVolumeMouseEnter = useCallback(() => {
-    if (speedOpen || eqOpen) return;
-    clearVolumeHoverTimer();
-    updateVolumePopupPosition();
-    setVolumeOpen(true);
-  }, [clearVolumeHoverTimer, updateVolumePopupPosition, speedOpen, eqOpen]);
-
-  const handleVolumeMouseLeave = useCallback(() => {
-    clearVolumeHoverTimer();
-    // Keep open while user is actively dragging the slider
-    if (isVolumeDragging || volumePinnedRef.current) return;
-    volumeHoverCloseTimerRef.current = setTimeout(() => {
-      setVolumeOpen(false);
-    }, 140);
-  }, [clearVolumeHoverTimer, isVolumeDragging]);
+  const toolboxButtonClass =
+    "inline-flex h-9 w-9 items-center justify-center rounded-control text-text-secondary transition-colors duration-150 hover:bg-black/[0.05] dark:hover:bg-white/[0.09] hover:text-text-primary active:scale-[0.96] border-none bg-transparent cursor-pointer @max-[1120px]:h-8 @max-[1120px]:w-8 @max-[760px]:h-[30px] @max-[760px]:w-[30px]";
 
   const handleVolumeWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -376,33 +426,19 @@ function MiniPlayer({
       const delta = e.deltaY < 0 ? 0.04 : -0.04;
       const nextLevel = Math.min(1, Math.max(0, volumeLevel + delta));
       playerEngine.setVolume(toVolumeGain(nextLevel));
-      setVolumeOpen(true);
-      clearVolumeHoverTimer();
-      if (volumePinnedRef.current) return;
-      volumeHoverCloseTimerRef.current = setTimeout(() => {
-        setVolumeOpen(false);
-      }, 1200);
     },
-    [clearVolumeHoverTimer, volumeLevel],
+    [volumeLevel],
   );
 
-  const handleVolumeDraggingChange = useCallback((dragging: boolean) => {
-    setIsVolumeDragging(dragging);
-  }, []);
+  const handleVolumeMuteToggle = useCallback(() => {
+    playerEngine.setVolume(
+      toVolumeGain(volumeLevel === 0 ? restoreVolumeRef.current : 0),
+    );
+  }, [volumeLevel]);
 
   useEffect(() => {
-    return () => {
-      clearVolumeHoverTimer();
-    };
-  }, [clearVolumeHoverTimer]);
-
-  useEffect(() => {
-    if (!volumeOpen) {
-      volumePinnedRef.current = false;
-      return;
-    }
-    updateVolumePopupPosition();
-  }, [volumeOpen, updateVolumePopupPosition]);
+    if (volumeLevel > 0) restoreVolumeRef.current = volumeLevel;
+  }, [volumeLevel]);
 
   // measured in the click handler, before the popup mounts: positioning it in an
   // effect afterwards moved it on its first open, and framer flew the active
@@ -425,15 +461,6 @@ function MiniPlayer({
         return;
       }
 
-      if (volumeOpen) {
-        const clickedVolumePopup = volumePopupRef.current?.contains(target);
-        const clickedVolumeToggle = volumeToggleRef.current?.contains(target);
-        if (!clickedVolumePopup && !clickedVolumeToggle) {
-          clearVolumeHoverTimer();
-          setVolumeOpen(false);
-        }
-      }
-
       if (speedOpen) {
         const clickedSpeedPopup = speedPopupRef.current?.contains(target);
         const clickedSpeedToggle = speedToggleRef.current?.contains(target);
@@ -453,12 +480,6 @@ function MiniPlayer({
 
     const onDocumentKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (volumeOpen) {
-          event.preventDefault();
-          event.stopPropagation();
-          clearVolumeHoverTimer();
-          setVolumeOpen(false);
-        }
         if (speedOpen) {
           event.preventDefault();
           event.stopPropagation();
@@ -478,35 +499,13 @@ function MiniPlayer({
       document.removeEventListener("mousedown", onDocumentPointerDown, true);
       document.removeEventListener("keydown", onDocumentKeyDown, true);
     };
-  }, [clearVolumeHoverTimer, eqOpen, speedOpen, volumeOpen]);
+  }, [eqOpen, speedOpen]);
 
   return (
     <div
       ref={miniPlayerRootRef}
-      className="relative h-[84px] w-full select-none"
+      className="@container relative h-[84px] w-full select-none"
     >
-      <AnimatePresence>
-        {volumeOpen && (
-          <motion.div
-            key="volume-popup"
-            ref={volumePopupRef}
-            initial={{ opacity: 0, y: 8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.96, pointerEvents: "none" }}
-            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute bottom-[88px] z-[99] w-[46px] rounded-[11px] p-[4px] bg-fill backdrop-blur-2xl backdrop-saturate-150 prevent-seek"
-            style={volumePopupStyle}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseEnter={clearVolumeHoverTimer}
-            onMouseLeave={handleVolumeMouseLeave}
-          >
-            <div className="absolute inset-x-0 -bottom-[8px] top-0 pointer-events-auto" />
-
-            <VolumeColumn onDraggingChange={handleVolumeDraggingChange} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <AnimatePresence>
         {speedOpen && (
           <motion.div
@@ -556,7 +555,7 @@ function MiniPlayer({
               : "rounded-3xl border-[0.5px] border-border-tertiary bg-bg-primary"
         }`}
       >
-        <div className="relative grid h-full grid-cols-[300px_minmax(0,1fr)_288px] pointer-events-none">
+        <div className="relative grid h-full grid-cols-[300px_minmax(0,1fr)_auto] pointer-events-none @max-[1120px]:grid-cols-[260px_minmax(0,1fr)_auto] @max-[900px]:grid-cols-[230px_minmax(0,1fr)_auto] @max-[760px]:grid-cols-[210px_minmax(0,1fr)_auto]">
           <div
             className="flex h-full items-center gap-[12px] px-[16px] pointer-events-none cursor-default"
             onContextMenu={handleTrackContextMenu}
@@ -670,9 +669,9 @@ function MiniPlayer({
             )}
           </div>
 
-          <div className="col-start-3 row-start-1 flex h-full min-w-0 items-center pl-[10px] pr-[18px] pointer-events-none">
+          <div className="col-start-3 row-start-1 flex h-full min-w-0 items-center pl-[10px] pr-[18px] pointer-events-none @max-[1120px]:pl-2 @max-[1120px]:pr-3 @max-[760px]:pl-1.5 @max-[760px]:pr-2">
             <div
-              className="ml-auto flex items-center gap-[2px] pointer-events-auto prevent-seek cursor-default"
+              className="ml-auto flex items-center gap-2 pointer-events-auto prevent-seek cursor-default @max-[1120px]:gap-1"
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button
@@ -680,12 +679,11 @@ function MiniPlayer({
                 type="button"
                 aria-label={t("player.equalizer")}
                 title={t("player.equalizer")}
-                className={`${iconButtonClass} ${
+                className={`${toolboxButtonClass} ${
                   eqOpen || eqActive ? activeToggleClass : ""
                 }`}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
-                  setVolumeOpen(false);
                   setSpeedOpen(false);
                   onQueueOpenChange?.(false);
                   if (!eqOpen)
@@ -701,7 +699,7 @@ function MiniPlayer({
                   transition={{ type: "spring", stiffness: 350, damping: 22 }}
                   className="flex items-center justify-center"
                 >
-                  <Tuning2 size={18} weight={eqActive ? "Bold" : "Outline"} />
+                  <Tuning2 size={20} weight={eqActive ? "Bold" : "Outline"} />
                 </motion.div>
               </button>
               <button
@@ -709,7 +707,7 @@ function MiniPlayer({
                 type="button"
                 aria-label="Speed and Pitch"
                 title={`${t("player.speed_pitch")}: x${(player.playbackRate ?? 1).toFixed(2)}`}
-                className={`${iconButtonClass} ${
+                className={`${toolboxButtonClass} ${
                   speedOpen ||
                   Math.abs((player.playbackRate ?? 1) - 1) > 0.001 ||
                   Math.abs(player.pitchSemitones ?? 0) > 0.001
@@ -718,8 +716,6 @@ function MiniPlayer({
                 }`}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
-                  clearVolumeHoverTimer();
-                  setVolumeOpen(false);
                   setEqOpen(false);
                   onQueueOpenChange?.(false);
                   if (!speedOpen)
@@ -736,7 +732,7 @@ function MiniPlayer({
                   className="flex items-center justify-center"
                 >
                   <PlaybackSpeed
-                    size={18}
+                    size={20}
                     weight={
                       Math.abs((player.playbackRate ?? 1) - 1) > 0.001 ||
                       Math.abs(player.pitchSemitones ?? 0) > 0.001
@@ -747,97 +743,71 @@ function MiniPlayer({
                 </motion.div>
               </button>
               <button
-                ref={volumeToggleRef}
                 type="button"
-                aria-label="Volume"
-                className={`${iconButtonClass} ${
-                  volumeOpen ? "bg-bg-toolbox-active text-text-primary" : ""
-                }`}
+                aria-label={
+                  volumeLevel === 0
+                    ? t("player.unmute") || "Unmute"
+                    : t("player.mute") || "Mute"
+                }
+                title={`${t("player.volume") || "Volume"}: ${Math.round(volumeLevel * 100)}%`}
+                className={toolboxButtonClass}
                 onPointerDown={(e) => e.stopPropagation()}
-                onMouseEnter={handleVolumeMouseEnter}
-                onMouseLeave={handleVolumeMouseLeave}
                 onWheel={handleVolumeWheel}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearVolumeHoverTimer();
-                  if (volumeOpen && volumePinnedRef.current) {
-                    setVolumeOpen(false);
-                    return;
-                  }
-                  volumePinnedRef.current = true;
-                  updateVolumePopupPosition();
-                  setSpeedOpen(false);
-                  setEqOpen(false);
-                  onQueueOpenChange?.(false);
-                  setVolumeOpen(true);
-                }}
+                onClick={handleVolumeMuteToggle}
                 style={{ cursor: "pointer" }}
               >
                 {volumeLevel === 0 ? (
-                  <VolumeCross size={18} weight="Outline" />
+                  <VolumeCross size={20} weight="Outline" />
                 ) : volumeLevel < 0.33 ? (
-                  <VolumeSmall size={18} weight="Outline" />
+                  <VolumeSmall size={20} weight="Outline" />
                 ) : (
-                  <VolumeLoud size={18} weight="Outline" />
+                  <VolumeLoud size={20} weight="Outline" />
                 )}
               </button>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={Math.round(volumeLevel * 100)}
-                aria-label={t("player.volume") || "Volume"}
-                title={`${t("player.volume") || "Volume"}: ${Math.round(volumeLevel * 100)}%`}
-                onChange={(e) =>
-                  playerEngine.setVolume(
-                    toVolumeGain(Number(e.target.value) / 100),
-                  )
+              <VolumeSlider
+                accentColor={accentColorSolid}
+                trackColor={
+                  isLight ? "rgba(0, 0, 0, 0.14)" : "rgba(255, 255, 255, 0.22)"
                 }
-                onPointerDown={(e) => e.stopPropagation()}
-                className="prevent-seek h-[14px] w-[68px] shrink-0 cursor-pointer bg-transparent"
-                style={{ accentColor: accentColorSolid }}
               />
               <button
                 type="button"
                 aria-label={t("player.open_player")}
                 title={t("player.open_player")}
-                className={iconButtonClass}
+                className={toolboxButtonClass}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   setSpeedOpen(false);
                   setEqOpen(false);
-                  setVolumeOpen(false);
                   onFullscreenOpen?.();
                 }}
               >
-                <MaximizeSquare3 size={18} weight="Outline" />
+                <MaximizeSquare3 size={20} weight="Outline" />
               </button>
               <button
                 type="button"
                 aria-label={t("player.queue")}
                 title={t("player.queue")}
-                className={iconButtonClass}
+                className={toolboxButtonClass}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   setSpeedOpen(false);
                   setEqOpen(false);
-                  setVolumeOpen(false);
                   onQueueToggle?.();
                 }}
                 style={{ cursor: "pointer" }}
               >
-                <Sidebar size={18} weight="Outline" />
+                <Sidebar size={20} weight="Outline" />
               </button>
             </div>
           </div>
 
           <div className="col-start-2 row-start-1 flex h-full min-w-0 items-center justify-center px-1 pointer-events-none">
             <div
-              className="pointer-events-auto flex w-full min-w-0 max-w-[620px] flex-col items-center gap-[4px] prevent-seek cursor-default"
+              className="pointer-events-auto flex w-full min-w-0 max-w-[728px] flex-col items-center gap-[4px] prevent-seek cursor-default"
               onPointerDown={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-[6px]">
+              <div className="flex items-center gap-4 @max-[1120px]:gap-[10px] @max-[900px]:gap-[6px]">
                 <button
                   type="button"
                   aria-label="Shuffle"
@@ -852,7 +822,7 @@ function MiniPlayer({
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => playerEngine.setShuffle(!player.shuffle)}
                 >
-                  <Shuffle size={18} weight="Outline" />
+                  <Shuffle size={20} weight="Outline" />
                 </button>
                 <button
                   type="button"
@@ -864,12 +834,12 @@ function MiniPlayer({
                   }}
                   style={{ cursor: "pointer" }}
                 >
-                  <SkipPrevious size={18} weight="Bold" />
+                  <SkipPrevious size={20} weight="Bold" />
                 </button>
                 <button
                   type="button"
                   aria-label={isPlaying ? "Pause" : "Play"}
-                  className="inline-flex h-[40px] w-[40px] items-center justify-center rounded-full transition-all duration-150 ease-out hover:scale-105 active:scale-[0.96] border-none cursor-pointer shadow-sm"
+                  className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full transition-all duration-150 ease-out hover:scale-105 active:scale-[0.96] border-none cursor-pointer shadow-sm"
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => {
                     void playerEngine.togglePlayPause();
@@ -915,7 +885,7 @@ function MiniPlayer({
                   }}
                   style={{ cursor: "pointer" }}
                 >
-                  <SkipNext size={18} weight="Bold" />
+                  <SkipNext size={20} weight="Bold" />
                 </button>
                 <button
                   type="button"
@@ -939,7 +909,7 @@ function MiniPlayer({
                 </button>
               </div>
               <div className="flex w-full items-center gap-[12px]">
-                <span className="w-[36px] shrink-0 text-right text-[12px] font-[400] tabular-nums text-text-tertiary">
+                <span className="w-[36px] shrink-0 text-right text-[12px] font-[400] tabular-nums text-text-tertiary @max-[900px]:hidden">
                   {formatPlaybackTime(player.positionMs)}
                 </span>
                 <TimelineSlider
@@ -962,7 +932,7 @@ function MiniPlayer({
                   }
                   className="flex-1"
                 />
-                <span className="w-[36px] shrink-0 text-[12px] font-[400] tabular-nums text-text-tertiary">
+                <span className="w-[36px] shrink-0 text-[12px] font-[400] tabular-nums text-text-tertiary @max-[900px]:hidden">
                   {formatPlaybackTime(durationMs)}
                 </span>
               </div>
