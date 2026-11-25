@@ -383,6 +383,22 @@ reports ready is also reported as a failed check after 12 s, and the panel
 enables its retry button after 20 s, so a blocked or unreachable check cannot
 strand sign-in on a disabled button.
 
+### Turnstile 110200 on a new host
+
+Turnstile binds a sitekey to the hostnames listed under the widget's
+**Hostname Management**, and the check frame runs on the page's own origin, so
+the host the visitor is on is the host that has to be listed — a
+`*.workers.dev` URL, a custom domain, each preview host. A host that is missing
+reports `[Cloudflare Turnstile] Error: 110200` ("Domain not authorized") and
+logs `Ignored message from wrong origin: <page origin>`; no token is posted, so
+the panel ends at the 12 s failure above.
+
+Add the bare hostname — no scheme, port or path — for every host that serves
+the app. A root domain also covers its subdomains, but a `*.workers.dev` host
+is its own entry and is not covered by anything else (preview hosts included).
+The sitekey comes from the API's challenge response, so the widget to edit is
+the one owned by the API deployment, not anything in this repository.
+
 ## Static hosting (GitHub Pages)
 
 `pnpm build:web` emits a fully static `dist-web/`. Set the base path to the
