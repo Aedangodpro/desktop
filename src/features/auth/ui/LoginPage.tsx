@@ -240,21 +240,36 @@ export default function LoginPage() {
         <div className="flex w-full flex-col px-[28px] pb-[22px] pt-[26px]">
           <div className="flex flex-col pb-6">
             <div className="w-full">
-              <div className="flex gap-[8px]">
-                {modes.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => selectMode(item.id)}
-                    className={`h-[38px] flex-1 cursor-pointer rounded-[10px] border-none text-[13.5px] font-[500] transition-colors duration-150 ${
-                      mode === item.id
-                        ? "bg-btn-primary-bg text-btn-primary-text"
-                        : "bg-bg-elevated text-text-secondary hover:text-text-primary"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <div
+                className={cn(
+                  "flex gap-[8px]",
+                  !canRegister && "border-b border-border-primary",
+                )}
+              >
+                {modes.map((item) => {
+                  const active = mode === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectMode(item.id)}
+                      className={cn(
+                        "h-[38px] cursor-pointer border-none text-[13.5px] font-[500] transition-colors duration-150",
+                        canRegister
+                          ? `flex-1 rounded-[10px] ${
+                              active
+                                ? "bg-btn-primary-bg text-btn-primary-text"
+                                : "bg-bg-elevated text-text-secondary hover:text-text-primary"
+                            }`
+                          : // a lone tab reads as the page title, not as a button:
+                            // no fill, no full width, just an underline
+                            "relative flex-none rounded-none bg-transparent px-[2px] text-text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:rounded-full after:bg-text-primary",
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
               </div>
               {!canRegister && (
                 <p className="m-0 mt-[10px] text-[11.5px] leading-[1.5] text-text-tertiary">
