@@ -390,7 +390,8 @@
       "registration_failed": "Регистрация не удалась: {status}",
       "verification_canceled": "Подтверждение отменено.",
       "human_check_cancelled": "Пройдите проверку, чтобы продолжить.",
-      "human_check_failed": "Проверка не прошла. Попробуйте ещё раз."
+      "human_check_failed": "Проверка не прошла. Попробуйте ещё раз.",
+      "account_exists_on_network": "В этой сети уже есть аккаунт. Войдите вместо этого."
     },
     "toasts": {
       "login_successful": "Успешный вход",

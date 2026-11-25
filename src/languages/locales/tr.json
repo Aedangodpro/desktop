@@ -339,7 +339,8 @@
       "account_not_found": "Hesap bulunamadı veya oturumun süresi doldu. Kaydolmayı dene.",
       "failed_start_auth": "Telegram kimlik doğrulaması başlatılamadı",
       "registration_failed": "Kayıt başarısız: {status}",
-      "verification_canceled": "Doğrulama iptal edildi."
+      "verification_canceled": "Doğrulama iptal edildi.",
+      "account_exists_on_network": "Bu ağda zaten bir hesap var. Bunun yerine oturum açın."
     },
     "toasts": {
       "login_successful": "Giriş başarılı",

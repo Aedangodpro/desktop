@@ -339,7 +339,8 @@
       "account_not_found": "Konto nicht gefunden oder Sitzung abgelaufen. Versuche dich zu registrieren.",
       "failed_start_auth": "Telegram-Authentifizierung konnte nicht gestartet werden",
       "registration_failed": "Registrierung fehlgeschlagen: {status}",
-      "verification_canceled": "Verifizierung abgebrochen."
+      "verification_canceled": "Verifizierung abgebrochen.",
+      "account_exists_on_network": "In diesem Netzwerk gibt es bereits ein Konto. Melde dich stattdessen an."
     },
     "toasts": {
       "login_successful": "Anmeldung erfolgreich",

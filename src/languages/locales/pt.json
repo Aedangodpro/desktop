@@ -345,7 +345,8 @@
       "account_not_found": "Conta não encontrada ou sessão expirada. Tente se registrar.",
       "failed_start_auth": "Falha ao iniciar a autenticação do Telegram",
       "registration_failed": "Falha no registro: {status}",
-      "verification_canceled": "Verificação cancelada."
+      "verification_canceled": "Verificação cancelada.",
+      "account_exists_on_network": "Já existe uma conta nesta rede. Entre em vez disso."
     },
     "toasts": {
       "login_successful": "Login bem-sucedido",

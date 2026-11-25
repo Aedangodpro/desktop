@@ -338,7 +338,8 @@
       "account_not_found": "Akun tidak ditemukan atau sesi berakhir. Coba daftar.",
       "failed_start_auth": "Gagal memulai autentikasi Telegram",
       "registration_failed": "Pendaftaran gagal: {status}",
-      "verification_canceled": "Verifikasi dibatalkan."
+      "verification_canceled": "Verifikasi dibatalkan.",
+      "account_exists_on_network": "Akun sudah ada di jaringan ini. Masuk saja sebagai gantinya."
     },
     "toasts": {
       "login_successful": "Berhasil masuk",

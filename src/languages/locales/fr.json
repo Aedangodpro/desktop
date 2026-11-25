@@ -376,7 +376,8 @@
       "account_not_found": "Compte introuvable ou session expirée. Essayez de vous inscrire.",
       "failed_start_auth": "Impossible de lancer l'authentification Telegram",
       "registration_failed": "Échec de l'inscription : {status}",
-      "verification_canceled": "Vérification annulée."
+      "verification_canceled": "Vérification annulée.",
+      "account_exists_on_network": "Un compte existe déjà sur ce réseau. Connectez-vous à la place."
     },
     "toasts": {
       "login_successful": "Connexion réussie",

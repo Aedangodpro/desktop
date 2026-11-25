@@ -388,7 +388,8 @@
       "registration_failed": "Registration failed: {status}",
       "verification_canceled": "Verification canceled.",
       "human_check_cancelled": "Finish the human check to continue.",
-      "human_check_failed": "The human check didn't go through. Please try again."
+      "human_check_failed": "The human check didn't go through. Please try again.",
+      "account_exists_on_network": "An account already exists on this network. Switch to the Sign in tab to continue."
     },
     "toasts": {
       "login_successful": "Login successful",

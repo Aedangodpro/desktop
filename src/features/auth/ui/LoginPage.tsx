@@ -58,6 +58,7 @@ export default function LoginPage() {
     if (code === "server_unavailable")
       return t("login.errors.server_unavailable");
     if (code === "server_error") return t("login.errors.server_error");
+    if (code === "rate_limited") return t("common.error_too_many");
     if (code === "invalid_credentials")
       return t("login.errors.invalid_credentials");
     if (code === "email_already_used")
@@ -171,7 +172,14 @@ export default function LoginPage() {
       navigate("/", { replace: true });
     } catch (nextError) {
       const code = getAuthErrorCode(nextError);
-      if (code === "email_already_used") {
+      if (code === "rate_limited") {
+        // One account per IP: there is nothing to create on this network, but
+        // the account it refers to can be used, so land on the sign-in form
+        // with the explanation instead of leaving them on a dead sign-up form.
+        setMode("login");
+        setRegisterStep(1);
+        setError(t("login.errors.account_exists_on_network"));
+      } else if (code === "email_already_used") {
         setRegisterStep(1);
         setError(t("login.errors.email_already_used"));
       } else {

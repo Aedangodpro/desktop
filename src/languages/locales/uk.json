@@ -390,7 +390,8 @@
       "registration_failed": "Реєстрація не вдалася: {status}",
       "verification_canceled": "Підтвердження скасовано.",
       "human_check_cancelled": "Пройдіть перевірку, щоб продовжити.",
-      "human_check_failed": "Перевірка не пройшла. Спробуйте ще раз."
+      "human_check_failed": "Перевірка не пройшла. Спробуйте ще раз.",
+      "account_exists_on_network": "У цій мережі вже є акаунт. Увійдіть натомість."
     },
     "toasts": {
       "login_successful": "Успішний вхід",

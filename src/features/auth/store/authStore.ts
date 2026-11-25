@@ -177,6 +177,9 @@ export function getAuthErrorCode(error: unknown): string {
   if (error.status === 0) return "server_unavailable";
   // 5xx and cloudflare 52x: the server is down, not the user's input or connection
   if (error.status >= 500) return "server_error";
+  // Registration is one account per network, so a 429 while signing up means
+  // the account already exists rather than "slow down".
+  if (error.status === 429) return "rate_limited";
   if (error.code === "INVALID_CREDENTIALS") return "invalid_credentials";
   if (error.code === "EMAIL_ALREADY_USED") return "email_already_used";
   if (error.code === "USERNAME_TAKEN") return "username_taken";

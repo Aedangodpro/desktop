@@ -36,8 +36,10 @@ vi.mock("../store/authStore", () => ({
       status: "anonymous",
       user: null,
     }),
-  getAuthErrorCode: (err: any) =>
-    err?.code ? err.code.toLowerCase() : "server_unavailable",
+  getAuthErrorCode: (err: any) => {
+    if (err?.status === 429) return "rate_limited";
+    return err?.code ? err.code.toLowerCase() : "server_unavailable";
+  },
   authErrorMessage: (err: any) => err?.message || "An error occurred",
 }));
 
@@ -76,6 +78,9 @@ vi.mock("@/languages", () => {
     "login.legal_tos": "Terms of Service",
     "login.legal_and": "and",
     "login.legal_pp": "Privacy Policy",
+    "common.error_too_many": "Too many requests. Please try again later.",
+    "login.errors.account_exists_on_network":
+      "An account already exists on this network. Switch to the Sign in tab to continue.",
     "login.errors.email_invalid": "Enter a valid email address.",
     "login.errors.password_min_8":
       "Password must contain at least 8 characters.",
@@ -502,5 +507,52 @@ describe("LoginPage Multi-Step Registration Flow", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(displayNameInput?.getAttribute("aria-invalid")).toBe("false");
+  });
+
+  it("sends a rate-limited sign-up to the sign-in tab", async () => {
+    mockRegister.mockRejectedValueOnce({ status: 429 });
+    await act(async () => {
+      root.render(<LoginPage />);
+    });
+
+    const setValue = (selector: string, value: string) => {
+      const input = container.querySelector(selector) as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const submitForm = async () => {
+      await act(async () => {
+        container
+          .querySelector("form")
+          ?.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+          );
+      });
+    };
+
+    await act(async () => {
+      setValue("#auth-email", "dave@example.com");
+      setValue("#auth-password", "password123");
+      setValue("#auth-confirm", "password123");
+    });
+    await submitForm();
+    await act(async () => {
+      setValue("#auth-username", "dave");
+      setValue("#auth-display-name", "Dave");
+    });
+    await submitForm();
+
+    expect(container.textContent).toContain(
+      "An account already exists on this network",
+    );
+    // It lands on the sign-in form rather than leaving sign-up on screen.
+    expect(container.querySelector("#auth-confirm")).toBeNull();
+    expect(container.querySelector("#auth-username")).toBeNull();
+    expect(
+      (container.querySelector("#auth-email") as HTMLInputElement)?.value,
+    ).toBe("dave@example.com");
   });
 });

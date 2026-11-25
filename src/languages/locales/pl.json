@@ -343,7 +343,8 @@
       "account_not_found": "Nie znaleziono konta lub sesja wygasła. Spróbuj się zarejestrować.",
       "failed_start_auth": "Nie udało się rozpocząć uwierzytelniania przez Telegram",
       "registration_failed": "Rejestracja nie powiodła się: {status}",
-      "verification_canceled": "Weryfikacja anulowana."
+      "verification_canceled": "Weryfikacja anulowana.",
+      "account_exists_on_network": "W tej sieci istnieje już konto. Zaloguj się zamiast tego."
     },
     "toasts": {
       "login_successful": "Zalogowano pomyślnie",

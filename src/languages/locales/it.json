@@ -339,7 +339,8 @@
       "account_not_found": "Account non trovato o sessione scaduta. Prova a registrarti.",
       "failed_start_auth": "Impossibile avviare l'autenticazione Telegram",
       "registration_failed": "Registrazione non riuscita: {status}",
-      "verification_canceled": "Verifica annullata."
+      "verification_canceled": "Verifica annullata.",
+      "account_exists_on_network": "Esiste già un account su questa rete. Accedi invece."
     },
     "toasts": {
       "login_successful": "Accesso riuscito",
