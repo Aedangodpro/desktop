@@ -1,8 +1,14 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "@/languages";
 import { usePlayerStore } from "@/features/player";
+import { EqualizerPicker } from "@/features/player/ui/EqualizerPicker";
 import { ToggleSwitch } from "@/shared/ui";
-import { SettingRow, SettingSection, SegmentedControl } from "../controls";
+import {
+  SettingBlock,
+  SettingRow,
+  SettingSection,
+  SegmentedControl,
+} from "../controls";
 
 export function PlaybackTab({ searchQuery }: { searchQuery?: string }) {
   const { t } = useTranslation();
@@ -122,6 +128,16 @@ export function PlaybackTab({ searchQuery }: { searchQuery?: string }) {
           />
         }
       />
+
+      <SettingBlock
+        title={t("player.equalizer")}
+        description={t("player.equalizer_hint")}
+        titleKey="player.equalizer"
+        descKey="player.equalizer_hint"
+        searchQuery={searchQuery}
+      >
+        <EqualizerPicker hideToggle />
+      </SettingBlock>
     </SettingSection>
   );
 }

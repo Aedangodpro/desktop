@@ -93,6 +93,11 @@ const SETTING_ITEMS: { tabId: TabId; titleKey: string; descKey?: string }[] = [
     titleKey: "settings.audio.pause_on_device_change.title",
     descKey: "settings.audio.pause_on_device_change.description",
   },
+  {
+    tabId: "Playback",
+    titleKey: "player.equalizer",
+    descKey: "player.equalizer_hint",
+  },
 
   // Shortcuts
   {

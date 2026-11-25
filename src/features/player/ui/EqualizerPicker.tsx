@@ -27,6 +27,8 @@ import { OptionToggle } from "./speed/OptionToggle";
 
 export interface EqualizerPickerProps {
   className?: string;
+  // the settings row already owns the title/hint, so it hides this toggle
+  hideToggle?: boolean;
 }
 
 type EqTab = EqPresetCategory | "custom";
@@ -139,6 +141,7 @@ function BandSlider({ frequency, value, dimmed, onChange }: BandSliderProps) {
 
 export const EqualizerPicker = memo(function EqualizerPicker({
   className,
+  hideToggle = false,
 }: EqualizerPickerProps) {
   const { t } = useTranslation();
   // only the EQ settings are read here: the playhead used to re-render the
@@ -190,13 +193,15 @@ export const EqualizerPicker = memo(function EqualizerPicker({
       )}
       onClick={(event) => event.stopPropagation()}
     >
-      <OptionToggle
-        title={t("player.equalizer")}
-        hint={t("player.equalizer_hint")}
-        checked={isEqEnabled}
-        ariaLabel={t("player.equalizer")}
-        onChange={(enabled) => playerEngine.setIsEqEnabled(enabled)}
-      />
+      {!hideToggle && (
+        <OptionToggle
+          title={t("player.equalizer")}
+          hint={t("player.equalizer_hint")}
+          checked={isEqEnabled}
+          ariaLabel={t("player.equalizer")}
+          onChange={(enabled) => playerEngine.setIsEqEnabled(enabled)}
+        />
+      )}
 
       <div className="flex flex-col gap-[8px]">
         <div className="grid grid-cols-4 gap-[2px] rounded-control bg-black/[0.04] p-[2px] dark:bg-white/[0.04]">
