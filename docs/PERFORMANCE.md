@@ -33,6 +33,27 @@ Frame pacing is not "wait a whole interval": on a 144 Hz display a 16.7 ms
 interval falls between two and three refresh slots and a whole-interval wait
 lands on 48 fps (`isFrameDue`, tested in `kawarpPacing.test.ts`).
 
+## Route changes
+
+Measured on the production web build (headless Chromium, 1440×900, guest
+content) with a long-animation-frame observer plus a DevTools timeline trace:
+click to the first presented frame of the new route is 25–28 ms, no frame in
+the window passed 50 ms, and the trace totals ~5 ms of layout against ~24 ms of
+script. The script is React re-rendering the shell and revealing the page's
+deferred Activity work, not a data refetch.
+
+What still read as lag was presentation. Both kept pages replayed the 200 ms
+`page-enter` animation every time `Activity` showed them, because leaving
+`display: none` restarts CSS animations. The incoming page therefore painted at
+opacity 0 for its first two or three frames and only reached opacity 1 at
+~220 ms after the click. Kept pages now switch with no entry animation — they
+are already mounted and current — while routes that actually mount keep the
+rise and fade, where it covers the first paint instead of delaying it.
+
+The trace cannot price paint or GPU work: headless Chromium has no compositor
+surface, so `Rasterize` stays at 0 ms. A slow `backdrop-filter` or a large blur
+on a real display would not appear in these numbers.
+
 ## Canvas lyrics benchmark
 
 `docs/perf/lyrics-bench.html` + `scripts/perf/lyricsProbe.ts` mount the real

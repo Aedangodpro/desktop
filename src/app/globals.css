@@ -333,10 +333,14 @@ img {
   width: 100%;
 }
 
-/* kept pages (home, library) get only the animation, no lasting transform,
-   so nothing inside them changes containing block */
+/* Kept pages (home, library) are already mounted behind Activity, so their
+   content is correct the instant they are shown. They must not replay the
+   entry animation: leaving display:none restarts it, which held the page at
+   opacity 0 for the first frames and only reached full opacity after 200 ms —
+   every switch between the two main routes read as lag. Mounted routes keep
+   the animation above, where it covers the first paint instead of delaying it.
+   No lasting transform either, so nothing inside changes containing block. */
 .page-transition-kept {
-  animation: page-enter 200ms cubic-bezier(0.22, 1, 0.36, 1);
   height: 100%;
   width: 100%;
 }
