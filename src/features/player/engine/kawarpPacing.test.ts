@@ -58,6 +58,18 @@ describe("kawarp frame pacing", () => {
     expect(fps).toBeLessThanOrEqual(32);
   });
 
+  it("draws balanced at half of a 144 Hz display", () => {
+    const fps = framesPerSecond(144, 72);
+    expect(fps).toBeGreaterThanOrEqual(70);
+    expect(fps).toBeLessThanOrEqual(73);
+  });
+
+  it("draws balanced at half of a 200 Hz display", () => {
+    const fps = framesPerSecond(200, 100);
+    expect(fps).toBeGreaterThanOrEqual(98);
+    expect(fps).toBeLessThanOrEqual(101);
+  });
+
   it("clamps absurd frame rates", () => {
     expect(isFrameDue(0, 1, 0)).toBe(false);
     expect(isFrameDue(0, 1, Number.NaN)).toBe(false);

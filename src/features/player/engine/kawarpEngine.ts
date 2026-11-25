@@ -18,7 +18,8 @@ const MAX_FPS_LIMIT = 1000;
 /**
  * The background used to render at a fixed 30 fps, which is the one thing in
  * the player that visibly stepped at 30 while everything around it ran at the
- * display rate. Full visuals now follow the display up to 60 fps.
+ * display rate. Full visuals now follow the display, and the balanced mode
+ * draws half of it, measured once per session in `useDisplayRefreshRate`.
  *
  * The wait is a fraction of the target interval instead of most of it: on a
  * 144 Hz display a 16.7 ms interval falls between two and three refresh slots,

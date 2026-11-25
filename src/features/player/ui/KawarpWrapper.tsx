@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { KawarpEngine } from "../engine/kawarpEngine";
+import { useDisplayRefreshRate } from "../hooks/useDisplayRefreshRate";
 import { useEffectiveVisualMode } from "../store/visualModeStore";
 import { getCoverElement, useCoverElement } from "@/features/covers";
 import { observeElementVisible } from "@/shared/utils/elementVisibility";
@@ -12,11 +13,16 @@ export const KAWARP_RENDER_SCALE = 0.5;
  * is what decides whether playback feels like 30 or the display's own cadence.
  * Full visuals follow the display — rAF is already vsynced, and the high cap
  * only guards against a runaway loop — so a 144 or 200 Hz panel is drawn every
- * refresh instead of being held to 60. The cheaper mode keeps 30, where the
- * savings matter more than the cadence.
+ * refresh instead of being held to 60. Balanced draws half of the measured
+ * rate: 30 on a 60 Hz panel, 60 on 120 Hz, 72 on 144 Hz, 100 on 200 Hz. The
+ * cheaper cadence is the point, but keeping it in step with the display stops
+ * it from beating against the refresh and reading as stutter.
+ *
+ * The default is the 60 Hz fallback used until the first measurement lands.
  */
-export function kawarpFpsFor(isFullVisuals: boolean): number {
-  return isFullVisuals ? 1000 : 30;
+export function kawarpFpsFor(isFullVisuals: boolean, displayHz = 60): number {
+  if (isFullVisuals) return 1000;
+  return Math.max(20, Math.round(displayHz / 2));
 }
 
 interface KawarpWrapperProps {
@@ -32,7 +38,9 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
   const visibleRef = useRef(true);
   const [loaded, setLoaded] = useState(false);
   const coverElement = useCoverElement(src);
-  const maxFps = kawarpFpsFor(useEffectiveVisualMode() === "full");
+  const isFullVisuals = useEffectiveVisualMode() === "full";
+  const displayHz = useDisplayRefreshRate();
+  const maxFps = kawarpFpsFor(isFullVisuals, displayHz);
   const maxFpsRef = useRef(maxFps);
   maxFpsRef.current = maxFps;
 

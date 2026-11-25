@@ -26,7 +26,26 @@ import {
   KAWARP_RENDER_SCALE,
   KAWARP_RESIZE_SETTLE_MS,
   KawarpWrapper,
+  kawarpFpsFor,
 } from "./KawarpWrapper";
+
+describe("kawarpFpsFor", () => {
+  it("lets full visuals run at the display's own cadence", () => {
+    expect(kawarpFpsFor(true)).toBe(1000);
+    expect(kawarpFpsFor(true, 200)).toBe(1000);
+  });
+
+  it("draws balanced at half of the detected display rate", () => {
+    expect(kawarpFpsFor(false, 60)).toBe(30);
+    expect(kawarpFpsFor(false, 120)).toBe(60);
+    expect(kawarpFpsFor(false, 144)).toBe(72);
+    expect(kawarpFpsFor(false, 200)).toBe(100);
+  });
+
+  it("keeps 30 fps until a display rate has been measured", () => {
+    expect(kawarpFpsFor(false)).toBe(30);
+  });
+});
 
 describe("KawarpWrapper", () => {
   let container: HTMLDivElement;

@@ -5,20 +5,29 @@ each one costs, what was measured, and what is still unmeasured.
 
 ## What a player frame is made of
 
-| Layer                              | Where                                   | Cadence before | Cadence now       |
-| ---------------------------------- | --------------------------------------- | -------------- | ----------------- |
-| Album-colour warp (WebGL)          | `engine/kawarpEngine.ts`                | 30 fps, fixed  | display rate, ≤60 |
-| Ambient background (worker canvas) | `hooks/useAmbientWorker.ts`             | 30 fps         | 30 fps            |
-| Lyrics canvas                      | `lyrics/canvas/lyricsCanvasRenderer.ts` | on demand      | on demand         |
-| Edge blur bands over the lyrics    | `player/ui/CanvasLyricsView.tsx`        | full visuals   | 56/72 px, masked  |
-| Notch glass (`backdrop-blur-2px`)  | `shared/ui/Notch.tsx`                   | full visuals   | static fill       |
-| Page cover backdrop (`blur(56px)`) | `navigation/ui/PageCoverBackdrop.tsx`   | static image   | static image      |
+| Layer                              | Where                                   | Cadence before | Cadence now                  |
+| ---------------------------------- | --------------------------------------- | -------------- | ---------------------------- |
+| Album-colour warp (WebGL)          | `engine/kawarpEngine.ts`                | 30 fps, fixed  | display, or half in balanced |
+| Ambient background (worker canvas) | `hooks/useAmbientWorker.ts`             | 30 fps         | 30 fps                       |
+| Lyrics canvas                      | `lyrics/canvas/lyricsCanvasRenderer.ts` | on demand      | on demand                    |
+| Edge blur bands over the lyrics    | `player/ui/CanvasLyricsView.tsx`        | full visuals   | 56/72 px, masked             |
+| Notch glass (`backdrop-blur-2px`)  | `shared/ui/Notch.tsx`                   | full visuals   | static fill                  |
+| Page cover backdrop (`blur(56px)`) | `navigation/ui/PageCoverBackdrop.tsx`   | static image   | static image                 |
 
 Only the warp actually stepped at 30 fps, but it is the largest moving surface
 on screen, so it is the one that made playback read as "30 fps" while the lyrics
-and the UI ran at the display rate. It now follows the display up to 60 fps in
-the full visual mode and keeps 30 fps in the balanced mode, where the cheaper
-cadence is the point.
+and the UI ran at the display rate. Full visuals now draw every refresh, and the
+balanced mode draws half of the display rate: 30 on a 60 Hz panel, 60 on 120 Hz,
+72 on 144 Hz, 100 on 200 Hz. Half is still the cheaper cadence, but it stays in
+step with the refresh instead of beating against it.
+
+The rate is measured rather than assumed, because the browser exposes no
+refresh-rate API. `hooks/useDisplayRefreshRate.ts` samples rAF once per session
+for 500 ms, takes the fastest sustained interval (a single hitch must not halve
+the estimate), and snaps the result to the panel it belongs to (59.94 → 60,
+143.6 → 144, 199.4 → 200). An unusual panel keeps its measured rate. Until the
+sample lands — or while the page is hidden, where rAF is throttled — the 60 Hz
+fallback applies.
 
 Frame pacing is not "wait a whole interval": on a 144 Hz display a 16.7 ms
 interval falls between two and three refresh slots and a whole-interval wait
