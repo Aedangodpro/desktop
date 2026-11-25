@@ -118,6 +118,13 @@ function TrackCard({
       return;
     }
 
+    // "play" is also what a double click does, so there is nothing to wait
+    // for; only the queue behaviour needs the window to detect the second click.
+    if (trackDoubleClickBehavior !== "queue") {
+      handlePlay();
+      return;
+    }
+
     clickTimerRef.current = setTimeout(() => {
       clickTimerRef.current = null;
       handlePlay();

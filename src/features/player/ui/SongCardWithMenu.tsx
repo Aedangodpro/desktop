@@ -173,7 +173,12 @@ function SongCardWithMenu({
       coverUrl={coverUrl}
       className={className}
       onPlay={onPlay}
-      onDoubleClick={handleDoubleClick}
+      // With the default "play" behaviour a double click runs the same action
+      // as a single one, so the card can act on the first click. Only the
+      // queue behaviour needs the 200 ms window to tell the two apart.
+      onDoubleClick={
+        trackDoubleClickBehavior === "queue" ? handleDoubleClick : undefined
+      }
       duration={duration}
       releaseDate={releaseDate}
       explicit={explicit}

@@ -156,3 +156,87 @@ ambient layer and the lyrics canvas. Both now select only the fields they use.
   only the signed-out paths can be exercised here.
 - **Provider latency itself.** The fixes bound the work around a slow provider;
   they do not make YouTube or SoundCloud answer sooner.
+
+## Second pass: the clicks that were waiting on a timer
+
+The first pass priced main-thread work and paint. This pass went looking for the
+remaining delay in the interaction itself, with the click dispatched inside the
+page so the measurement starts at the DOM event rather than at the automation
+call.
+
+### Every list row waited 200 ms before doing anything
+
+`SongCardWithMenu` always passed `onDoubleClick` to `SongCard`. That put the card
+on its double-click path, which holds the primary action for 200 ms in case a
+second click arrives: play a track, open an artist, open an album, from search,
+the library, an artist page, a collection or the queue. With the default
+`trackDoubleClickBehavior: "play"` a double click runs exactly the same action as
+a single one, so the wait bought nothing for most users.
+
+The card now only passes `onDoubleClick` when the setting is `"queue"`, where the
+two gestures differ. The wait stays there, and only there. `PopularTracksSection`
+(the home strips) had the same timer and the same reasoning; it now plays on the
+first click in `"play"` mode.
+
+Measured on the production web build, 1440x900, guest, headless Chromium 141,
+clicks dispatched in-page (three samples each, medians; the same `SongCard` backs
+all of these rows):
+
+| Interaction                          |   Before |   After |
+| ------------------------------------ | -------: | ------: |
+| Artist row: click -> hash change     | 215.4 ms |  5.4 ms |
+| Album row: click -> hash change      | 204.5 ms |  6.4 ms |
+| Artist row: click -> painted route   | ~272 ms* | 39.0 ms |
+| Album row: click -> painted route    |        - | 42.6 ms |
+| Play a search row: click -> mini bar | >=200 ms | 57.1 ms |
+| Open fullscreen player (cold)        |  36.1 ms | 39.3 ms |
+| Open fullscreen player (warm)        |  41.0 ms | 33.0 ms |
+
+\* measured through Playwright's click, whose input pipeline adds up to a frame
+or two; the before/after gap is the 200 ms timer either way.
+
+### The search overlay stayed on top of the page it opened
+
+Clicking an artist, album or playlist in search navigated behind the still-open
+overlay, so the destination only became usable after a second click or Escape.
+That is part of why navigation did not feel finished. Selecting a navigation
+result now closes search; playing a track still leaves it open for browsing.
+
+### Tried and reverted: lazy-loading the fullscreen player
+
+`AppFrame` imported `FullscreenPlayer` statically, which pulled the `player`
+chunk (968 KB raw / 249 KB gzipped) into the boot payload even though
+`routes.tsx` already treated the player as a lazy route. Making the import lazy
+and prefetching it once playback started only moved 7 KB gzipped off boot — the
+audio engine, the store and the lyrics cache are needed by the mini player — and
+the first fullscreen open went from 36 ms to **345 ms** while the already-loaded
+warm open stayed at 37 ms. The module is compiled on first import and that cost
+belongs on boot, not on the click. Reverted. The player chunk size is a boot
+budget item, not an interaction one.
+
+### Re-measured (no regression)
+
+| Interaction (1440x900, production build)  |  Before |   After |
+| ----------------------------------------- | ------: | ------: |
+| Navigate home <-> library, click -> frame | 29.3 ms | 26.3 ms |
+| Library tab switch, click -> frame        | 28.8 ms | 27.9 ms |
+| Search typing, key -> frame p50           | 19.9 ms | 16.1 ms |
+| Create-playlist open, click -> frame      | 45.1 ms | 27.9 ms |
+| Dialog typing, key -> frame p50           | 16.9 ms | 13.4 ms |
+
+These are at the 60 Hz headless vsync floor; the spread between runs is larger
+than any change here.
+
+### Remaining in this area
+
+- **Daily mix cards** still hold the click for 200 ms because a single click
+  opens the mix and a double click plays it. Dropping the double-click shortcut
+  (the mix page has a play button) would make the first click immediate.
+- **Mini player blur.** With the cover backdrop on, the embedded mini bar uses a
+  48 px `backdrop-filter` over the page, and page content scrolls underneath it.
+  A compositor cost cannot be measured in this VM; it is the same category as the
+  dialog blur fixed earlier and should be A/B'd on the desktop build.
+- **Lyrics canvas with a real stream.** The headless shell cannot demux the
+  streams this VM can reach (`DEMUXER_ERROR_NO_SUPPORTED_STREAMS`), so the
+  lyrics panel is still measured only by `docs/perf/lyrics-bench.html`, not by
+  opening the player on a playing track.

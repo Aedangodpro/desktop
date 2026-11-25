@@ -17,6 +17,7 @@ import {
 } from "@mingcute/react";
 import { mediaUrl, toClientTrack, toMaxQualityAvatarUrl } from "@/shared/api";
 import { playerEngine } from "@/features/player";
+import { useModalStore } from "@/features/library";
 import { useTranslation } from "@/languages";
 import { useSearchHistoryStore } from "../store/searchHistoryStore";
 import { SearchHistoryList } from "./SearchHistoryList";
@@ -58,6 +59,7 @@ export function SearchOverlay({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const closeSearch = useModalStore((state) => state.closeSearch);
 
   const [searchQuery, setSearchQuery] = useState("");
   const typeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -427,6 +429,7 @@ export function SearchOverlay({
           itemData: it,
         });
         navigate(`/artist?id=${encodeURIComponent(it.id)}`);
+        closeSearch();
       } else if (
         it._type === "playlist" ||
         it.owner !== undefined ||
@@ -447,6 +450,7 @@ export function SearchOverlay({
             subtitle: it.author || it.owner,
           }),
         });
+        closeSearch();
       } else if (
         it._type === "album" ||
         it.totalTracks !== undefined ||
@@ -468,9 +472,10 @@ export function SearchOverlay({
             subtitle: it.artists || it.artist,
           }),
         });
+        closeSearch();
       }
     },
-    [activeFilter, navigate, addHistoryItem, t],
+    [activeFilter, navigate, addHistoryItem, t, closeSearch],
   );
 
   return (
