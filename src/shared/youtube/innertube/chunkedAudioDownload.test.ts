@@ -71,6 +71,40 @@ describe("downloadAudioBytes", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  it("finishes a relayed stream the media proxy answered one window at a time", async () => {
+    const relay =
+      "https://app.tryliner.fun/__media?url=https%3A%2F%2Fcf-media.sndcdn.com%2Fabc.mp3";
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const url = new URL(String(input));
+        const start = url.searchParams.get("start");
+        if (start === null) {
+          // the relay only forwards a bounded upstream range per request
+          return new Response(source.slice(0, 1000), {
+            status: 206,
+            headers: { "content-range": `bytes 0-999/${source.length}` },
+          });
+        }
+        const from = Number(start);
+        const to = Number(url.searchParams.get("end"));
+        return new Response(source.slice(from, to + 1), { status: 200 });
+      });
+
+    await expect(
+      downloadAudioBytes(relay, { chunkSize: 1000 }),
+    ).resolves.toEqual(source);
+    expect(
+      fetchSpy.mock.calls.slice(1).map(([input]) => {
+        const url = new URL(String(input));
+        return [url.searchParams.get("start"), url.searchParams.get("end")];
+      }),
+    ).toEqual([
+      ["1000", "1999"],
+      ["2000", "2499"],
+    ]);
+  });
+
   it("returns null for a partial single-request response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(new Uint8Array(4), {
