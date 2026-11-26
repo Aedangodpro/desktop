@@ -33,6 +33,16 @@ describe("classifyConnection", () => {
     ).toBe("server_error");
   });
 
+  it("blames the server, not the device, for a refused probe", () => {
+    expect(
+      classifyConnection({
+        ...base,
+        api: { ok: false, status: 403 },
+        internet: null,
+      }),
+    ).toBe("server_unreachable");
+  });
+
   it("calls the server unreachable when the rest of the internet works", () => {
     expect(classifyConnection({ ...base, api: { ok: false } })).toBe(
       "server_unreachable",

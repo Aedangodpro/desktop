@@ -194,6 +194,35 @@ describe("api proxy", () => {
     expect(body.origin).toBeNull();
   });
 
+  it("drops the edge's client-ip headers before calling upstream", async () => {
+    const upstream = await startUpstream((seen) => ({
+      status: 200,
+      body: JSON.stringify({
+        connectingIp: seen.headers["cf-connecting-ip"] ?? null,
+        forwardedFor: seen.headers["x-forwarded-for"] ?? null,
+        proxied: seen.headers["x-agent37-proxied"] ?? null,
+      }),
+    }));
+    const proxy = await startProxy(upstream.origin);
+
+    const res = await fetch(`${proxy}/__liner/health`, {
+      headers: {
+        "cf-connecting-ip": "203.0.113.9",
+        "x-forwarded-for": "203.0.113.9",
+        "x-agent37-proxied": "preview",
+      },
+    });
+    const body = (await res.json()) as {
+      connectingIp: string | null;
+      forwardedFor: string | null;
+      proxied: string | null;
+    };
+
+    expect(body.connectingIp).toBeNull();
+    expect(body.forwardedFor).toBeNull();
+    expect(body.proxied).toBeNull();
+  });
+
   it("passes the api's bare 403 through instead of inventing a gateway error", async () => {
     const upstream = await startUpstream(() => ({
       status: 403,

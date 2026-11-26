@@ -26,6 +26,10 @@ export function classifyConnection(probe: ConnectionProbe): ConnectionVerdict {
   if (!probe.deviceOnline) return "offline";
   if (probe.api.status !== undefined && probe.api.status >= 500)
     return "server_error";
+  // Any HTTP answer, even a refusal, proves a network path to the API exists.
+  // Calling a 4xx "offline" hides the real server-side failure behind an
+  // offline library message.
+  if (probe.api.status !== undefined) return "server_unreachable";
   if (probe.internet === true) return "server_unreachable";
   return "offline";
 }

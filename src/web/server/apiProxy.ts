@@ -68,6 +68,28 @@ const SIGNATURE_HEADERS = new Set([
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 
 /**
+ * Edge metadata describes the machine that relayed the page, not this server
+ * call. A forwarded `cf-connecting-ip` is taken as the real client address and
+ * Cloudflare refuses the request with "DNS points to prohibited IP", so these
+ * must never travel further upstream.
+ */
+const EDGE_IDENTITY_HEADERS = new Set([
+  "cf-connecting-ip",
+  "cf-ipcountry",
+  "cf-ray",
+  "cf-visitor",
+  "cf-worker",
+  "cdn-loop",
+  "true-client-ip",
+  "x-real-ip",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-port",
+  "x-forwarded-proto",
+  "forwarded",
+]);
+
+/**
  * The API answers the desktop client's Electron user agent and refuses browser
  * agents with a bare `403 Forbidden`, so a browser-originated request must be
  * presented as the desktop client. Signature checks come after this gate.
@@ -112,6 +134,9 @@ function requestHeaders(
     // upstream treats them as a cross-origin attempt.
     if (HOP_BY_HOP.has(lower)) continue;
     if (SIGNATURE_HEADERS.has(lower)) continue;
+    if (EDGE_IDENTITY_HEADERS.has(lower)) continue;
+    // preview relays name themselves in this header
+    if (lower.endsWith("-proxied")) continue;
     if (lower === "origin" || lower === "referer") continue;
     headers[lower] = Array.isArray(value) ? value.join(", ") : value;
   }
