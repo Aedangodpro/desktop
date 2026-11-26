@@ -44,6 +44,13 @@ const STALL_RECOVERY_MS = 12_000;
  * up the stream: fall through to resolving one.
  */
 const CACHE_LOOKUP_TIMEOUT_MS = 2_000;
+/** events that can change how much of the current track is buffered */
+const AUDIO_BUFFER_EVENTS = [
+  "progress",
+  "canplaythrough",
+  "ended",
+  "emptied",
+] as const;
 
 function settleWithin<T>(
   promise: Promise<T>,
@@ -1403,21 +1410,89 @@ export class PlayerRuntime {
     return new Blob([bytes], { type: mimeType });
   }
 
+  /**
+   * Resolves true once the element has downloaded the track it is playing in
+   * full, false if it stopped being the attached track or the load went away.
+   * Only the browser build waits on this; see cacheAudioInBackground.
+   */
+  private waitForBufferedAudio(
+    trackId: string,
+    expectedDurationSec: number,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    const isFullyBuffered = () => {
+      if (this.attachedTrackId !== trackId) return false;
+      const { duration: reported, buffered } = this.audio;
+      // a webm stream without a duration header reports Infinity until it is
+      // fully downloaded, so the catalog duration stands in for it
+      const duration =
+        Number.isFinite(reported) && reported > 0
+          ? reported
+          : expectedDurationSec;
+      if (!Number.isFinite(duration) || duration <= 0) return false;
+      for (let i = 0; i < buffered.length; i += 1) {
+        // one range covering the whole file (a seek can leave gaps before it)
+        if (buffered.start(i) <= 0.5 && buffered.end(i) >= duration - 0.5)
+          return true;
+      }
+      return false;
+    };
+
+    if (signal.aborted) return Promise.resolve(false);
+    if (isFullyBuffered()) return Promise.resolve(true);
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      let timer: ReturnType<typeof setInterval> | undefined;
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        if (timer !== undefined) clearInterval(timer);
+        for (const type of AUDIO_BUFFER_EVENTS)
+          this.audio.removeEventListener(type, check);
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      };
+      const check = () => {
+        if (signal.aborted) finish(false);
+        else if (isFullyBuffered()) finish(true);
+      };
+      const onAbort = () => finish(false);
+      for (const type of AUDIO_BUFFER_EVENTS)
+        this.audio.addEventListener(type, check);
+      signal.addEventListener("abort", onAbort, { once: true });
+      // `progress` drives this; the interval is for engines that only report
+      // the new range on timeupdate.
+      timer = setInterval(check, 1000);
+    });
+  }
+
   private cacheAudioInBackground(
     track: Track,
     stream: PlaybackStream,
     signal: AbortSignal,
   ) {
     if (isLocalTrackId(track.id) || isSavedTrack(track.id)) return;
-    // In the browser this track is already streaming through the same-origin
-    // relay, so caching it means pulling the same bytes a second time while it
-    // plays and competing with the audio element for the connection. The next
-    // track is warmed by preloadTrack instead, which is the copy that pays off.
-    if (IS_WEB_TARGET) return;
     if (track.durationMs && track.durationMs > 20 * 60 * 1000) return;
     const generation = audioCache.currentGeneration();
     void (async () => {
       try {
+        // In the browser a url stream is the same-origin relay the element is
+        // already pulling, and fetching it a second time now would put two
+        // copies of one song on the connection. A blob stream already holds its
+        // bytes; a url stream waits until the element has the whole file, when
+        // the extra copy can no longer starve playback.
+        if (
+          IS_WEB_TARGET &&
+          !stream.blob &&
+          !stream.completed &&
+          !(await this.waitForBufferedAudio(
+            track.id,
+            (track.durationMs ?? 0) / 1000,
+            signal,
+          ))
+        )
+          return;
         const blob = await this.downloadAudioBlob(stream, signal);
         if (!blob || signal.aborted) return;
         if (
