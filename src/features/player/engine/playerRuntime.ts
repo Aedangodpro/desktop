@@ -807,6 +807,12 @@ export class PlayerRuntime {
   }
 
   public async preloadTrack(track: Track): Promise<void> {
+    // In the browser a url stream is the same-origin relay the playing track is
+    // already pulling, so a speculative full download competes with it for the
+    // connection and puts songs in the cache that were never played. The
+    // browser build caches the track it actually plays once the element has
+    // buffered it; see cacheAudioInBackground.
+    if (IS_WEB_TARGET) return;
     if (isLocalTrackId(track.id) || isSavedTrack(track.id)) return;
     if (this.currentTrackId === track.id) return;
     if (this.preloadingTrackId === track.id) return;
