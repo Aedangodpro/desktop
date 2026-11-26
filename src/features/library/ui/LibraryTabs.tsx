@@ -6,12 +6,22 @@ import { HERO_BUTTON_CLASS, HERO_GLASS_BUTTON_CLASS } from "@/shared/ui";
 interface LibraryTabsProps {
   activeTab: LibraryTab;
   onChange: (tab: LibraryTab) => void;
+  /** Albums and artists are saved to an account, so guests have no tabs for them. */
+  showAccountTabs?: boolean;
 }
 
 const tabs: LibraryTab[] = ["all", "playlists", "albums", "artists"];
+const accountTabs: ReadonlySet<LibraryTab> = new Set(["albums", "artists"]);
 
-export default function LibraryTabs({ activeTab, onChange }: LibraryTabsProps) {
+export default function LibraryTabs({
+  activeTab,
+  onChange,
+  showAccountTabs = true,
+}: LibraryTabsProps) {
   const { t } = useTranslation();
+  const visibleTabs = showAccountTabs
+    ? tabs
+    : tabs.filter((tab) => !accountTabs.has(tab));
 
   const tabLabels: Record<LibraryTab, string> = {
     all: t("library.tab_all"),
@@ -22,7 +32,7 @@ export default function LibraryTabs({ activeTab, onChange }: LibraryTabsProps) {
 
   return (
     <div className="flex items-center gap-[8px]" role="tablist">
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const isActive = tab === activeTab;
         return (
           <Button

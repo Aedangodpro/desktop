@@ -238,43 +238,36 @@ export default function LoginPage() {
         <LoginBrandPanel title={heading} subtitle={subheading} />
 
         <div className="flex w-full flex-col px-[28px] pb-[22px] pt-[26px]">
-          <div className="flex flex-col pb-6">
+          <div className="flex flex-col pb-4">
             <div className="w-full">
-              <div
-                className={cn(
-                  "flex gap-[8px]",
-                  !canRegister && "border-b border-border-primary",
-                )}
-              >
-                {modes.map((item) => {
-                  const active = mode === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => selectMode(item.id)}
-                      className={cn(
-                        "h-[38px] cursor-pointer border-none text-[13.5px] font-[500] transition-colors duration-150",
-                        canRegister
-                          ? `flex-1 rounded-[10px] ${
-                              active
-                                ? "bg-btn-primary-bg text-btn-primary-text"
-                                : "bg-bg-elevated text-text-secondary hover:text-text-primary"
-                            }`
-                          : // a lone tab reads as the page title, not as a button:
-                            // no fill, no full width, just an underline
-                            "relative flex-none rounded-none bg-transparent px-[2px] text-text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:rounded-full after:bg-text-primary",
-                      )}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {!canRegister && (
-                <p className="m-0 mt-[10px] text-[11.5px] leading-[1.5] text-text-tertiary">
-                  {t("login.web_accounts_note")}
-                </p>
+              {canRegister ? (
+                <div className="flex gap-[8px]">
+                  {modes.map((item) => {
+                    const active = mode === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => selectMode(item.id)}
+                        className={cn(
+                          "h-[38px] flex-1 cursor-pointer rounded-[10px] border-none text-[13.5px] font-[500] transition-colors duration-150",
+                          active
+                            ? "bg-btn-primary-bg text-btn-primary-text"
+                            : "bg-bg-elevated text-text-secondary hover:text-text-primary",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                // The web build has one form, so a lone tab would read as a
+                // button that does nothing. It opens with a plain title and
+                // gives the guest path its own button below the form.
+                <h2 className="m-0 text-heading font-[600] leading-[1.2] tracking-[-0.01em] text-text-primary">
+                  {t("login.btn_sign_in")}
+                </h2>
               )}
               <form
                 noValidate
@@ -639,19 +632,51 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              enableGuestMode();
-              navigate("/");
-            }}
-            className="mx-auto -mt-[2px] shrink-0 cursor-pointer border-none bg-transparent text-caption text-text-tertiary underline underline-offset-2 transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-text-primary rounded-xs"
-          >
-            {t("login.use_without_account")}
-          </button>
+          <div className="shrink-0">
+            <div className="flex items-center gap-[10px]">
+              <span aria-hidden className="h-px flex-1 bg-border-primary" />
+              <span className="text-[11px] text-text-tertiary">
+                {t("login.separator_or")}
+              </span>
+              <span aria-hidden className="h-px flex-1 bg-border-primary" />
+            </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                enableGuestMode();
+                navigate("/");
+              }}
+              className="mt-[14px] w-full"
+            >
+              {t("login.guest_cta")}
+            </Button>
+
+            <p className="m-0 mt-[10px] text-[11.5px] leading-[1.5] text-text-tertiary">
+              {t("login.guest_can")}{" "}
+              <span className="text-text-secondary">
+                {t("login.guest_needs_account")}
+              </span>
+            </p>
+
+            {!canRegister && (
+              <p className="m-0 mt-[10px] text-center text-[11.5px] leading-[1.5] text-text-tertiary">
+                {t("login.need_account")}{" "}
+                <a
+                  href="https://tryliner.fun"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-text-primary rounded-xs"
+                >
+                  {t("login.need_account_action")}
+                </a>
+              </p>
+            )}
+          </div>
 
           {/* Bottom: legal warning */}
-          <p className="m-0 shrink-0 text-center text-[11px] leading-[1.5] text-text-tertiary">
+          <p className="m-0 mt-[14px] shrink-0 text-center text-[11px] leading-[1.5] text-text-tertiary">
             {t("login.legal")}{" "}
             <a
               href="https://tryliner.fun/terms"

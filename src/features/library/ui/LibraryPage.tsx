@@ -28,6 +28,7 @@ import { WifiOffLine } from "@mingcute/react";
 import { useOfflineModeStore } from "@/features/connectivity";
 import { goOnline } from "@/features/connectivity/engine/offlineController";
 import { useSavedTracks } from "../saved/hooks/useSavedTracks";
+import { useAuthStore } from "@/features/auth";
 
 const PAGE_SIZE = 24;
 
@@ -153,6 +154,8 @@ function OnlineLibraryPage() {
   const likesCover = useLikesCover();
   usePageBackdrop(likesCover, { blur: 56, dim: 0.22 });
   const [activeTab, setActiveTab] = useState<LibraryTab>("all");
+  const authStatus = useAuthStore((state) => state.status);
+  const signedIn = authStatus === "authenticated";
   const [stateByTab, setStateByTab] = useState<LibraryState>(initialState);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [viewMode, setViewMode] = useState<LibraryViewMode>(() => {
@@ -239,6 +242,17 @@ function OnlineLibraryPage() {
       setActiveTab(tab);
     }
   }, []);
+
+  // Albums and artists are account collections, so a guest has no tabs for
+  // them. A deep link (?tab=albums) or a finished session lands back on All.
+  useEffect(() => {
+    if (
+      authStatus === "anonymous" &&
+      (activeTab === "albums" || activeTab === "artists")
+    ) {
+      setActiveTab("all");
+    }
+  }, [activeTab, authStatus]);
 
   const filteredItems = useMemo(() => {
     let source: LibraryItemViewModel[];
@@ -402,7 +416,11 @@ function OnlineLibraryPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-[10px] px-[12px] pb-[10px]">
-            <LibraryTabs activeTab={activeTab} onChange={setActiveTab} />
+            <LibraryTabs
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              showAccountTabs={signedIn}
+            />
             <LibraryControls
               activeTab={activeTab}
               query={activeState.query}

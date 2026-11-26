@@ -297,6 +297,11 @@
     "profile_setup_title": "Set up your profile",
     "profile_setup_subtitle": "Choose your unique handle and display name.",
     "use_without_account": "Use without an account",
+    "guest_cta": "Continue as guest",
+    "guest_can": "Search, lyrics, playlists and liked songs stay on this device.",
+    "guest_needs_account": "Signing in syncs them across devices and adds your profile, saved albums, artists and playlist import.",
+    "need_account": "Need an account?",
+    "need_account_action": "Create one in the official Liner app",
     "btn_continue": "Continue",
     "btn_back": "Back",
     "username_hint": "3-30 lowercase characters, numbers or underscores.",
@@ -595,6 +600,11 @@
     "docs": "Docs",
     "support": "Support",
     "manage_account": "Manage account",
+    "guest": {
+      "title": "Guest",
+      "subtitle": "Library on this device",
+      "sign_in": "Sign in"
+    },
     "tabs": {
       "general": "General",
       "appearance": "Appearance",
