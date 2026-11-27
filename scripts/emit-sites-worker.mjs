@@ -34,7 +34,19 @@ const template = fs.readFileSync(templatePath, "utf8");
 if (!template.includes('from "./signer.wasm"')) {
   throw new Error("Worker template does not import the signer wasm");
 }
-fs.writeFileSync(outPath, template);
+
+// Workers Builds only watches worker paths for this project, so an SPA-only
+// commit would leave the deployed assets on the old build. Stamping the entry
+// chunk into the worker artifact makes every SPA build change a worker file.
+const indexHtmlPath = path.join(root, "dist-web", "index.html");
+let assetStamp = "";
+if (fs.existsSync(indexHtmlPath)) {
+  const entry = /assets\/index\.web-[A-Za-z0-9_-]+\.js/.exec(
+    fs.readFileSync(indexHtmlPath, "utf8"),
+  )?.[0];
+  if (entry) assetStamp = `// web build: ${entry}\n`;
+}
+fs.writeFileSync(outPath, assetStamp + template);
 
 console.log(
   `worker/index.mjs + worker/signer.wasm written (${Math.round(wasm.length / 1024)} KiB wasm)`,
