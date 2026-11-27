@@ -13,6 +13,7 @@ import { pitchShifter } from "./pitchShifter";
 import { FLAT_EQ, isEqActive } from "./equalizer";
 import { resolvePlaybackStream, type PlaybackStream } from "./streamResolver";
 import { applyMediaSeek, type MediaSeekOptions } from "./seek";
+import { PlaybackCacheClock } from "./playbackCacheClock";
 import { logNowPlaying } from "./nowPlayingLog";
 import {
   downloadAudioBytes,
@@ -44,10 +45,21 @@ const STALL_RECOVERY_MS = 12_000;
  * up the stream: fall through to resolving one.
  */
 const CACHE_LOOKUP_TIMEOUT_MS = 2_000;
-/** events that can change how much of the current track is buffered */
-const AUDIO_BUFFER_EVENTS = [
-  "progress",
-  "canplaythrough",
+/**
+ * How much of a track has to play before it is written to the cache. Counting
+ * listened-to time rather than buffer state is what lets a resume or a seek
+ * into the middle cache, and keeps a track that is skipped past out of it.
+ */
+const PLAYBACK_CACHE_AFTER_MS = 3000;
+/** events that move the media clock or start and stop it */
+const AUDIO_PLAYBACK_EVENTS = [
+  "timeupdate",
+  "play",
+  "playing",
+  "pause",
+  "seeking",
+  "seeked",
+  "waiting",
   "ended",
   "emptied",
 ] as const;
@@ -810,8 +822,8 @@ export class PlayerRuntime {
     // In the browser a url stream is the same-origin relay the playing track is
     // already pulling, so a speculative full download competes with it for the
     // connection and puts songs in the cache that were never played. The
-    // browser build caches the track it actually plays once the element has
-    // buffered it; see cacheAudioInBackground.
+    // browser build caches only the track it actually plays, once that track
+    // has been listened to; see cacheAudioInBackground.
     if (IS_WEB_TARGET) return;
     if (isLocalTrackId(track.id) || isSavedTrack(track.id)) return;
     if (this.currentTrackId === track.id) return;
@@ -1417,35 +1429,28 @@ export class PlayerRuntime {
   }
 
   /**
-   * Resolves true once the element has downloaded the track it is playing in
-   * full, false if it stopped being the attached track or the load went away.
-   * Only the browser build waits on this; see cacheAudioInBackground.
+   * Resolves true once the attached track has actually played for
+   * `thresholdMs`, wherever playback started: a resume or a seek into the
+   * middle counts from there, and a track that is skipped past before the
+   * threshold does not. Resolves false if the track stops being the attached
+   * one or the load goes away. Only the browser build waits on this; see
+   * cacheAudioInBackground.
    */
-  private waitForBufferedAudio(
+  private waitForPlayedAudio(
     trackId: string,
-    expectedDurationSec: number,
+    thresholdMs: number,
     signal: AbortSignal,
   ): Promise<boolean> {
-    const isFullyBuffered = () => {
+    const clock = new PlaybackCacheClock(this.audio);
+    const isPlayedEnough = () => {
       if (this.attachedTrackId !== trackId) return false;
-      const { duration: reported, buffered } = this.audio;
-      // a webm stream without a duration header reports Infinity until it is
-      // fully downloaded, so the catalog duration stands in for it
-      const duration =
-        Number.isFinite(reported) && reported > 0
-          ? reported
-          : expectedDurationSec;
-      if (!Number.isFinite(duration) || duration <= 0) return false;
-      for (let i = 0; i < buffered.length; i += 1) {
-        // one range covering the whole file (a seek can leave gaps before it)
-        if (buffered.start(i) <= 0.5 && buffered.end(i) >= duration - 0.5)
-          return true;
-      }
-      return false;
+      // a track played through to its end was listened to, even when it is
+      // shorter than the threshold
+      return this.audio.ended || clock.observe() >= thresholdMs;
     };
 
     if (signal.aborted) return Promise.resolve(false);
-    if (isFullyBuffered()) return Promise.resolve(true);
+    if (isPlayedEnough()) return Promise.resolve(true);
 
     return new Promise<boolean>((resolve) => {
       let settled = false;
@@ -1454,21 +1459,21 @@ export class PlayerRuntime {
         if (settled) return;
         settled = true;
         if (timer !== undefined) clearInterval(timer);
-        for (const type of AUDIO_BUFFER_EVENTS)
+        for (const type of AUDIO_PLAYBACK_EVENTS)
           this.audio.removeEventListener(type, check);
         signal.removeEventListener("abort", onAbort);
         resolve(value);
       };
       const check = () => {
-        if (signal.aborted) finish(false);
-        else if (isFullyBuffered()) finish(true);
+        if (signal.aborted || this.attachedTrackId !== trackId) finish(false);
+        else if (isPlayedEnough()) finish(true);
       };
       const onAbort = () => finish(false);
-      for (const type of AUDIO_BUFFER_EVENTS)
+      for (const type of AUDIO_PLAYBACK_EVENTS)
         this.audio.addEventListener(type, check);
       signal.addEventListener("abort", onAbort, { once: true });
-      // `progress` drives this; the interval is for engines that only report
-      // the new range on timeupdate.
+      // `timeupdate` drives this; the interval also covers an element that
+      // keeps playing without events, and notices a pause between tracks.
       timer = setInterval(check, 1000);
     });
   }
@@ -1483,18 +1488,15 @@ export class PlayerRuntime {
     const generation = audioCache.currentGeneration();
     void (async () => {
       try {
-        // In the browser a url stream is the same-origin relay the element is
-        // already pulling, and fetching it a second time now would put two
-        // copies of one song on the connection. A blob stream already holds its
-        // bytes; a url stream waits until the element has the whole file, when
-        // the extra copy can no longer starve playback.
+        // In the browser nothing decides the cache but the track the user is
+        // listening to: a neighbour preload, a track skipped past before it was
+        // played and a jump into the middle must not. Three seconds of real
+        // playback, counted from wherever playback started, is the bar.
         if (
           IS_WEB_TARGET &&
-          !stream.blob &&
-          !stream.completed &&
-          !(await this.waitForBufferedAudio(
+          !(await this.waitForPlayedAudio(
             track.id,
-            (track.durationMs ?? 0) / 1000,
+            PLAYBACK_CACHE_AFTER_MS,
             signal,
           ))
         )
