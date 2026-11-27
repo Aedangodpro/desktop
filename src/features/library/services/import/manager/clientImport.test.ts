@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchResult } from "@/shared/contracts";
 
 const mocks = vi.hoisted(() => ({
@@ -14,7 +14,8 @@ vi.mock("@/shared/youtube", async (importOriginal) => {
   return { ...actual, searchRaw: mocks.searchRaw };
 });
 
-import { api, ApiError } from "@/shared/api";
+import { api, ApiError, setAuthSession } from "@/shared/api";
+import type { AuthTokens } from "@/shared/contracts";
 import { runClientImport } from "./clientImportManager";
 import { finalizeImportedPlaylist } from "./finalizeImport";
 
@@ -136,6 +137,12 @@ describe("runClientImport", () => {
 });
 
 describe("finalizeImportedPlaylist", () => {
+  beforeEach(() => {
+    // these cases exercise the account path; signed-out saves are local
+    setAuthSession({ accessToken: "test", refreshToken: "test" } as AuthTokens);
+  });
+  afterEach(() => setAuthSession(null));
+
   const track = {
     id: "dQw4w9WgXcQ",
     title: "Never Gonna Give You Up",
