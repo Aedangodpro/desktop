@@ -6,6 +6,7 @@ import {
 } from "@/shared/utils/json";
 import { fetchSpotifySecret, fetchSpotifyServerTime } from "./spotifySecret";
 import { generateTotp, spotifySecretBytes } from "./spotifyTotp";
+import { mediaProxyUrl } from "@/web/proxyUrls";
 
 export interface SpotifySession {
   accessToken: string;
@@ -40,7 +41,10 @@ async function fetchAccessToken(
     totpVer: String(version),
   });
   const response = await fetch(
-    `https://open.spotify.com/api/token?${params.toString()}`,
+    mediaProxyUrl(
+      `https://open.spotify.com/api/token?${params.toString()}`,
+      true,
+    ),
     {
       headers: { accept: "application/json" },
       signal,
@@ -63,7 +67,7 @@ async function fetchAccessToken(
 
 async function fetchClientToken(signal?: AbortSignal): Promise<string> {
   const response = await fetch(
-    "https://clienttoken.spotify.com/v1/clienttoken",
+    mediaProxyUrl("https://clienttoken.spotify.com/v1/clienttoken", true),
     {
       method: "POST",
       headers: {

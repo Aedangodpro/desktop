@@ -17,11 +17,14 @@ function pageOrigin(): string {
   return typeof window !== "undefined" ? window.location.origin : "";
 }
 
-export function mediaProxyUrl(url: string): string {
+export function mediaProxyUrl(url: string, raw = false): string {
   if (!IS_WEB_TARGET || !url.startsWith("http")) return url;
   const prefix = `${pageOrigin()}${MEDIA_PROXY_PREFIX}`;
   if (url.startsWith(prefix)) return url;
-  return `${prefix}?url=${encodeURIComponent(url)}`;
+  const relayed = `${prefix}?url=${encodeURIComponent(url)}`;
+  // Raw relays fetch a document or API answer as-is: the ranged path would
+  // truncate HTML/JS to one 256 KiB window and cannot carry a POST body.
+  return raw ? `${relayed}&raw=1` : relayed;
 }
 
 /**

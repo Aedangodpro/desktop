@@ -10,6 +10,7 @@ import {
 } from "@/shared/utils/json";
 import type { ClientImportedTrack } from "../../importTypes";
 import { tryFetchText } from "@/shared/api/tryFetch";
+import { mediaProxyUrl } from "@/web/proxyUrls";
 import type { SpotifyEntityType } from "./spotifyUrl";
 
 export interface SpotifyEmbedData {
@@ -97,7 +98,7 @@ export async function fetchSpotifyEmbed(
   signal?: AbortSignal,
 ): Promise<SpotifyEmbedData> {
   const url = `https://open.spotify.com/embed/${entityType}/${encodeURIComponent(entityId)}`;
-  const html = await tryFetchText(url, { signal });
+  const html = await tryFetchText(mediaProxyUrl(url, true), { signal });
   return html
     ? parseSpotifyEmbedHtml(html, entityType, entityId, fallbackTitle)
     : { tracks: [] };

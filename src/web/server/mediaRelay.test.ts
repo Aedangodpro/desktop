@@ -453,4 +453,81 @@ describe("media relay", () => {
     expect(response.headers()["access-control-allow-origin"]).toBe("*");
     expect(response.body()).toBe('{"collection":[]}');
   });
+
+  it("raw-relays a Spotify document without a Range window", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("<!doctype html><html></html>", {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }),
+    );
+    const handle = createMediaRelay();
+    const response = mockResponse();
+    const target = "https://open.spotify.com/embed/playlist/abc";
+
+    await handle(
+      mockRequest(`/__media?url=${encodeURIComponent(target)}&raw=1`),
+      response.res,
+    );
+    await response.finished;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url.toString()).toBe(target);
+    expect(init.method).toBe("GET");
+    expect(init.headers.range).toBeUndefined();
+    expect(response.headers()["access-control-allow-origin"]).toBe("*");
+    expect(response.headers()["content-type"]).toBe("text/html; charset=utf-8");
+    expect(response.body()).toContain("<!doctype html>");
+  });
+
+  it("raw-relays the Spotify client-token POST with its body", async () => {
+    fetchMock.mockResolvedValue(
+      new Response('{"granted_token":{"token":"ct"}}', {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const handle = createMediaRelay();
+    const response = mockResponse();
+    const target = "https://clienttoken.spotify.com/v1/clienttoken";
+    const payload = '{"client_data":{}}';
+
+    await handle(
+      mockRequest(`/__media?url=${encodeURIComponent(target)}&raw=1`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: payload,
+      }),
+      response.res,
+    );
+    await response.finished;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init.method).toBe("POST");
+    expect(init.headers["content-type"]).toBe("application/json");
+    expect(init.headers.accept).toBe("application/json");
+    expect(Buffer.from(init.body).toString()).toBe(payload);
+    expect(response.status()).toBe(200);
+    expect(response.body()).toBe('{"granted_token":{"token":"ct"}}');
+  });
+
+  it("refuses raw relay for a trusted host outside the import allowlist", async () => {
+    const handle = createMediaRelay();
+    const response = mockResponse();
+
+    await handle(
+      mockRequest(
+        `/__media?url=${encodeURIComponent("https://www.youtube.com/")}&raw=1`,
+      ),
+      response.res,
+    );
+
+    expect(response.status()).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

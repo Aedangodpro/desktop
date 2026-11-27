@@ -1,5 +1,6 @@
 import { asRecord } from "@/shared/utils/json";
 import { tryFetchJson, tryFetchText } from "@/shared/api/tryFetch";
+import { mediaProxyUrl } from "@/web/proxyUrls";
 
 export interface SpotifyTotpSecret {
   secret: string;
@@ -27,9 +28,16 @@ export function extractSpotifySecret(
 export async function fetchSpotifySecret(
   signal?: AbortSignal,
 ): Promise<SpotifyTotpSecret> {
-  const html = await tryFetchText("https://open.spotify.com/", { signal });
+  const html = await tryFetchText(
+    mediaProxyUrl("https://open.spotify.com/", true),
+    {
+      signal,
+    },
+  );
   const scriptUrl = html?.match(WEB_PLAYER_SCRIPT)?.[1];
-  const js = scriptUrl ? await tryFetchText(scriptUrl, { signal }) : undefined;
+  const js = scriptUrl
+    ? await tryFetchText(mediaProxyUrl(scriptUrl, true), { signal })
+    : undefined;
   const secret = js ? extractSpotifySecret(js) : undefined;
   if (!secret)
     throw new Error("Spotify is unavailable right now, try again later.");
@@ -40,7 +48,10 @@ export async function fetchSpotifyServerTime(
   signal?: AbortSignal,
 ): Promise<number | null> {
   const data = asRecord(
-    await tryFetchJson("https://open.spotify.com/api/server-time", { signal }),
+    await tryFetchJson(
+      mediaProxyUrl("https://open.spotify.com/api/server-time", true),
+      { signal },
+    ),
   );
   const serverTime = Number(data?.serverTime);
   return data && !Number.isNaN(serverTime) ? serverTime : null;

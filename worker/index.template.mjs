@@ -422,6 +422,84 @@ async function upstreamRange(target, requested) {
   return `bytes=${start}-${Math.max(start, cap)}`;
 }
 
+/**
+ * Import endpoints the page cannot call itself.
+ *
+ * Spotify's embed page, web-player secret, token and server time answer no
+ * CORS headers, and the client token is a POST. They are fetched byte-for-byte
+ * (no Range) through the same relay; only these hosts may use that path.
+ */
+const RAW_RELAY_HOSTS = [
+  "open.spotify.com",
+  "open.spotifycdn.com",
+  "clienttoken.spotify.com",
+];
+const RAW_BODY_LIMIT_BYTES = 64 * 1024;
+
+function isRawRelayHost(hostname) {
+  return RAW_RELAY_HOSTS.some(
+    (host) => hostname === host || hostname.endsWith(`.${host}`),
+  );
+}
+
+async function handleRawMedia(request, parsed) {
+  const method = request.method.toUpperCase();
+  if (method !== "GET" && method !== "HEAD" && method !== "POST") {
+    return json(405, {
+      code: "MEDIA_PROXY_METHOD_REFUSED",
+      message: "That method is not relayed.",
+    });
+  }
+  // the only POST in this path mints a client token; nothing else needs a body
+  if (method === "POST" && parsed.hostname !== "clienttoken.spotify.com") {
+    return json(403, {
+      code: "MEDIA_PROXY_HOST_REFUSED",
+      message: "That host does not accept posts.",
+    });
+  }
+  const body =
+    method === "POST" ? new Uint8Array(await request.arrayBuffer()) : undefined;
+  if (body && body.byteLength > RAW_BODY_LIMIT_BYTES) {
+    return json(413, {
+      code: "MEDIA_PROXY_BODY_TOO_LARGE",
+      message: "That request body is too large.",
+    });
+  }
+
+  const headers = new Headers();
+  for (const name of ["accept", "content-type"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+
+  let upstream;
+  try {
+    upstream = await fetch(parsed, {
+      method,
+      headers,
+      body: body && body.byteLength ? body : undefined,
+      redirect: "follow",
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (error) {
+    return json(502, {
+      code: "MEDIA_PROXY_UNREACHABLE",
+      message: String(error),
+    });
+  }
+
+  const out = new Headers(corsHeaders());
+  for (const name of ["content-type", "cache-control"]) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+
+  return new Response(method === "HEAD" ? null : upstream.body, {
+    status: upstream.status,
+    headers: out,
+  });
+}
+
 async function handleMedia(request, url) {
   const target = url.searchParams.get("url");
   if (!target) {
@@ -453,6 +531,16 @@ async function handleMedia(request, url) {
       code: "MEDIA_PROXY_HOST_REFUSED",
       message: "That host is not relayed.",
     });
+  }
+
+  if (url.searchParams.get("raw") === "1") {
+    if (!isRawRelayHost(parsed.hostname)) {
+      return json(403, {
+        code: "MEDIA_PROXY_HOST_REFUSED",
+        message: "That host is not relayed raw.",
+      });
+    }
+    return handleRawMedia(request, parsed);
   }
 
   const method = request.method === "HEAD" ? "HEAD" : "GET";

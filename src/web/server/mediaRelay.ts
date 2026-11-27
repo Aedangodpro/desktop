@@ -222,6 +222,102 @@ function pipeBody(res: ServerResponse, body: ReadableStream<Uint8Array>): void {
   stream.pipe(res);
 }
 
+/**
+ * Import endpoints the page cannot call itself.
+ *
+ * Spotify's embed page, web-player secret, token and server time answer no
+ * CORS headers, and the client token is a POST. They are fetched byte-for-byte
+ * (no Range) through the same relay; only these hosts may use that path.
+ */
+const RAW_RELAY_HOSTS = [
+  "open.spotify.com",
+  "open.spotifycdn.com",
+  "clienttoken.spotify.com",
+];
+const RAW_BODY_LIMIT_BYTES = 64 * 1024;
+
+function isRawRelayHost(hostname: string): boolean {
+  return RAW_RELAY_HOSTS.some(
+    (host) => hostname === host || hostname.endsWith(`.${host}`),
+  );
+}
+
+async function handleRawMedia(
+  req: IncomingMessage,
+  res: ServerResponse,
+  parsed: URL,
+  log: (message: string) => void,
+): Promise<boolean> {
+  const method = (req.method ?? "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD" && method !== "POST") {
+    sendJson(res, 405, {
+      code: "MEDIA_PROXY_METHOD_REFUSED",
+      message: "That method is not relayed.",
+    });
+    return true;
+  }
+  // the only POST in this path mints a client token; nothing else needs a body
+  if (method === "POST" && parsed.hostname !== "clienttoken.spotify.com") {
+    sendJson(res, 403, {
+      code: "MEDIA_PROXY_HOST_REFUSED",
+      message: "That host does not accept posts.",
+    });
+    return true;
+  }
+  const body = method === "POST" ? await readRequestBody(req) : undefined;
+  if (body && body.length > RAW_BODY_LIMIT_BYTES) {
+    sendJson(res, 413, {
+      code: "MEDIA_PROXY_BODY_TOO_LARGE",
+      message: "That request body is too large.",
+    });
+    return true;
+  }
+
+  const headers: Record<string, string> = {};
+  for (const name of ["accept", "content-type"]) {
+    const value = req.headers[name];
+    if (typeof value === "string") headers[name] = value;
+  }
+
+  const startedAt = Date.now();
+  let upstream: Response;
+  try {
+    upstream = await fetch(parsed, {
+      method,
+      headers,
+      ...(body && body.length ? { body: new Uint8Array(body) } : {}),
+      redirect: "follow",
+    });
+  } catch (error) {
+    log(
+      `[media-proxy] ${method} ${parsed.hostname} unreachable: ${String(error)}`,
+    );
+    sendJson(res, 502, {
+      code: "MEDIA_PROXY_UNREACHABLE",
+      message: "The media host could not be reached.",
+    });
+    return true;
+  }
+
+  const out: Record<string, string> = { ...corsHeaders() };
+  for (const name of ["content-type", "cache-control"]) {
+    const value = upstream.headers.get(name);
+    if (value) out[name] = value;
+  }
+
+  log(
+    `[media-proxy:raw] ${method} ${parsed.hostname}${parsed.pathname} -> ${upstream.status} ${Date.now() - startedAt}ms`,
+  );
+
+  res.writeHead(upstream.status, out);
+  if (method === "HEAD" || !upstream.body) {
+    res.end();
+    return true;
+  }
+  pipeBody(res, upstream.body);
+  return true;
+}
+
 function corsHeaders(): Record<string, string> {
   return {
     "access-control-allow-origin": "*",
@@ -271,6 +367,17 @@ async function handleMedia(
       message: "That host is not relayed.",
     });
     return true;
+  }
+
+  if (url.searchParams.get("raw") === "1") {
+    if (!isRawRelayHost(parsed.hostname)) {
+      sendJson(res, 403, {
+        code: "MEDIA_PROXY_HOST_REFUSED",
+        message: "That host is not relayed raw.",
+      });
+      return true;
+    }
+    return handleRawMedia(req, res, parsed, log);
   }
 
   const method = req.method === "HEAD" ? "HEAD" : "GET";
