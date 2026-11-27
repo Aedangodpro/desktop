@@ -364,7 +364,10 @@ export class PlayerRuntime {
     audioEl.addEventListener("durationchange", () => {
       if (this.isResetting || audioEl !== this.audio) return;
       if (!this.currentTrackId) return;
-      if (Number.isNaN(audioEl.duration) || audioEl.duration <= 0) return;
+      // a webm/opus stream without a duration header reports Infinity until it
+      // ends, and no metadata at all reports NaN; neither is a length to show.
+      // Keep the catalog duration the track was loaded with instead.
+      if (!Number.isFinite(audioEl.duration) || audioEl.duration <= 0) return;
 
       usePlayerStore
         .getState()

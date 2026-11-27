@@ -3,6 +3,7 @@ import {
   registerPoTokenMinter,
 } from "@/shared/youtube/innertube/webBridges";
 import { innertubeProxyUrl } from "./proxyUrls";
+import { installChunkLoadRecovery } from "./chunkLoadRecovery";
 
 /**
  * Browser shell bootstrap.
@@ -121,6 +122,7 @@ export function installWebRuntime(): void {
   installed = true;
 
   document.documentElement.setAttribute("data-runtime", "web");
+  installChunkLoadRecovery();
   blockFileNavigation();
   installYoutubeBridges();
 

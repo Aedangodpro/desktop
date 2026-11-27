@@ -17,7 +17,7 @@ export interface TimelineSliderProps {
 }
 
 export function formatPlaybackTime(ms: number): string {
-  if (!ms || ms < 0) return "0:00";
+  if (!Number.isFinite(ms) || ms <= 0) return "0:00";
   const totalSec = Math.floor(ms / 1000);
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
@@ -43,11 +43,12 @@ export const TimelineSlider = memo(function TimelineSlider({
   const [scrubPosition, setScrubPosition] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  const duration = Math.max(0, durationMs);
+  const duration = Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0;
+  const position = Number.isFinite(positionMs) ? Math.max(0, positionMs) : 0;
   const currentPosition =
     isDragging && scrubPosition !== null
       ? scrubPosition
-      : Math.min(Math.max(0, positionMs), duration || Infinity);
+      : Math.min(position, duration || Infinity);
 
   const progress =
     duration > 0 ? Math.min(1, Math.max(0, currentPosition / duration)) : 0;

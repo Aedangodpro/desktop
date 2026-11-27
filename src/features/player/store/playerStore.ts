@@ -211,7 +211,12 @@ export const usePlayerStore = create<PlayerStore>()(
 
       setStatus: (status, error = null) => set({ status, error }),
       setPosition: (positionMs) => set({ positionMs }),
-      setDuration: (durationMs) => set({ durationMs }),
+      // a media element with no duration header reports Infinity (and NaN before
+      // metadata); that is not a length, so nothing downstream may see it
+      setDuration: (durationMs) =>
+        set({
+          durationMs: Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0,
+        }),
       setPlaybackMode: (playbackMode) => set({ playbackMode }),
       setRepeat: (repeat) => set({ repeat }),
       setShuffle: (shuffle) => set({ shuffle }),
