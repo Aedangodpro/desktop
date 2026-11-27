@@ -34,6 +34,7 @@ import { SpeedPitchPicker } from "./SpeedPitchPicker";
 import { EqualizerPicker } from "./EqualizerPicker";
 import { isEqActive } from "../engine/equalizer";
 import { TimelineSlider, formatPlaybackTime } from "./TimelineSlider";
+import { Visualizer } from "./Visualizer";
 import { useTheme } from "next-themes";
 import { useCoverReady, CoverImage, loadCoverElement } from "@/features/covers";
 import { useHasPageBackdrop } from "@/features/settings/store/customizationStore";
@@ -674,6 +675,10 @@ function MiniPlayer({
               className="ml-auto flex items-center gap-2 pointer-events-auto prevent-seek cursor-default @max-[1120px]:gap-1"
               onPointerDown={(e) => e.stopPropagation()}
             >
+              <Visualizer
+                color={accentColorSolid}
+                className="h-[22px] w-[64px] shrink-0 opacity-80 @max-[1120px]:hidden"
+              />
               <button
                 ref={eqToggleRef}
                 type="button"

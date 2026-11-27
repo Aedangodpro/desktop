@@ -51,6 +51,11 @@ const CACHE_LOOKUP_TIMEOUT_MS = 2_000;
  * into the middle cache, and keeps a track that is skipped past out of it.
  */
 const PLAYBACK_CACHE_AFTER_MS = 3000;
+/**
+ * A web preload of the next queue track lives only in memory until that track
+ * plays, so one decoded song is the most it may pin there.
+ */
+const MAX_PREFETCH_BYTES = 32 * 1024 * 1024;
 /** events that move the media clock or start and stop it */
 const AUDIO_PLAYBACK_EVENTS = [
   "timeupdate",
@@ -129,6 +134,12 @@ export class PlayerRuntime {
   private preloadingTrackId: string | null = null;
   private preloadingPromise: Promise<void> | null = null;
   private preloadAbortController: AbortController | null = null;
+  // Web-only preload of the next queue track, kept in memory: the switch to it
+  // starts from a local blob instead of resolving a stream again. It is never
+  // written to the audio cache — the cached library must only list tracks that
+  // were actually played.
+  private nextTrackBlob: { trackId: string; blob: Blob } | null = null;
+  private nextTrackAbort: AbortController | null = null;
   private backgroundCacheAbortController: AbortController | null = null;
   private currentSessionExpiresAt: number | null = null;
   private recoveryAttempts = 0;
@@ -806,6 +817,7 @@ export class PlayerRuntime {
   public cancelPendingLoad(): void {
     this.loadEpoch += 1;
     this.clearStallWatchdog();
+    this.abortNextTrackPrefetch();
     this.loadAbortController?.abort();
     this.loadAbortController = null;
     this.backgroundCacheAbortController?.abort();
@@ -819,6 +831,67 @@ export class PlayerRuntime {
     this.safeResetAudioElement();
     usePlayerStore.getState().setStatus("paused");
     log("cyan", "playback", "pending load cancelled");
+  }
+
+  private abortNextTrackPrefetch(): void {
+    this.nextTrackAbort?.abort();
+    this.nextTrackAbort = null;
+    this.nextTrackBlob = null;
+  }
+
+  /**
+   * Downloads the track after the current one into memory so the next skip is
+   * instant and has no buffer gap. Desktop keeps its persistent preload; the
+   * browser writes nothing to the cache here, and honours a metered connection.
+   */
+  private prefetchNextTrack(): void {
+    if (!IS_WEB_TARGET) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+    if (connection?.saveData) return;
+
+    const state = usePlayerStore.getState();
+    if (state.queue.length < 2) return;
+    const current = state.currentTrack;
+    if (!current) return;
+    const next = state.queue[(state.currentIndex + 1) % state.queue.length];
+    if (!next || next.id === current.id) return;
+    if (isLocalTrackId(next.id) || isSavedTrack(next.id)) return;
+    if (this.currentTrackId === next.id) return;
+    if (this.nextTrackBlob?.trackId === next.id) return;
+    if (this.nextTrackAbort) return;
+
+    const controller = new AbortController();
+    this.nextTrackAbort = controller;
+
+    void (async () => {
+      try {
+        const stream = await resolvePlaybackStream(next, controller.signal, {
+          progressive: true,
+          recordFailure: false,
+        });
+        if (controller.signal.aborted) {
+          stream.release?.();
+          return;
+        }
+        const blob = await this.downloadAudioBlob(stream, controller.signal);
+        stream.release?.();
+        if (!blob || controller.signal.aborted) return;
+        if (blob.size > MAX_PREFETCH_BYTES) return;
+        this.nextTrackBlob = { trackId: next.id, blob };
+        log(
+          "cyan",
+          "preload",
+          `next track ready: "${next.title}" (${Math.round(blob.size / 1024)} KB)`,
+        );
+      } catch {
+        // speculative: selecting the track later resolves it again
+      } finally {
+        if (this.nextTrackAbort === controller) this.nextTrackAbort = null;
+      }
+    })();
   }
 
   public async preloadTrack(track: Track): Promise<void> {
@@ -994,6 +1067,14 @@ export class PlayerRuntime {
     const controller = new AbortController();
     this.loadAbortController = controller;
 
+    // The in-flight prefetch is either for this track (the foreground load now
+    // owns the bandwidth) or stale. A finished blob for this track is kept.
+    this.nextTrackAbort?.abort();
+    this.nextTrackAbort = null;
+    if (this.nextTrackBlob && this.nextTrackBlob.trackId !== track.id) {
+      this.nextTrackBlob = null;
+    }
+
     this.backgroundCacheAbortController?.abort();
     const bgCacheController = new AbortController();
     this.backgroundCacheAbortController = bgCacheController;
@@ -1012,6 +1093,47 @@ export class PlayerRuntime {
     this.pauseForTransition();
 
     try {
+      const prefetchedBlob =
+        !bypassCache && this.nextTrackBlob?.trackId === track.id
+          ? this.nextTrackBlob.blob
+          : null;
+
+      if (prefetchedBlob) {
+        this.nextTrackBlob = null;
+        this.currentSessionExpiresAt = null;
+        const blobUrl = URL.createObjectURL(prefetchedBlob);
+        this.attachSource(blobUrl, true, track.id);
+        this.audio.volume = 0;
+        this.audio.load();
+        this.applyPlaybackRateAndPitch();
+
+        const targetPosition =
+          this.pendingStartPositionMs > 0
+            ? this.pendingStartPositionMs
+            : startPositionMs;
+        this.seekWhenReady(epoch, targetPosition);
+        log(
+          "cyan",
+          "playback",
+          `preloaded track hit: "${track.title}" (${Math.round(prefetchedBlob.size / 1024)} KB in memory)`,
+        );
+
+        if (epoch !== this.loadEpoch || controller.signal.aborted) return;
+
+        await this.startPlayback(targetPosition);
+
+        const audioStartLatencyMs = Math.round(
+          performance.now() - this.loadStartTime,
+        );
+        if (epoch === this.loadEpoch) {
+          usePlayerStore.getState().setStatus("playing");
+          this.fadeVolume(usePlayerStore.getState().volume, 180);
+        }
+        logNowPlaying(track, false, audioStartLatencyMs);
+        this.prefetchNextTrack();
+        return;
+      }
+
       const cachedAudio =
         bypassCache || isSavedTrack(track.id)
           ? null
@@ -1067,6 +1189,7 @@ export class PlayerRuntime {
           this.fadeVolume(usePlayerStore.getState().volume, 180);
         }
         logNowPlaying(track, true, audioStartLatencyMs);
+        this.prefetchNextTrack();
         return;
       }
 
@@ -1132,6 +1255,7 @@ export class PlayerRuntime {
         timeToFirstByteMs: this.ttfbMs,
         audioStartLatencyMs,
       });
+      this.prefetchNextTrack();
     } catch (error) {
       if (epoch !== this.loadEpoch || controller.signal.aborted) {
         return;

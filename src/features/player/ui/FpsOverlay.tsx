@@ -8,7 +8,10 @@ import {
 } from "../store/visualModeStore";
 
 const WINDOW_MS = 1000;
-const PUBLISH_MS = 250;
+// Half-second publishes: the numbers are a diagnostic, not an animation, and
+// each publish renders a component. Twice a second is plenty to see a stutter
+// and half the render work of the old quarter-second cadence.
+const PUBLISH_MS = 500;
 // A gap this long is the tab waking up or the process being descheduled, not
 // a frame the compositor missed; counting it would poison p95 for a second.
 const MAX_FRAME_MS = 1000;
@@ -21,7 +24,12 @@ function FpsOverlayPanel() {
   const downgraded = autoMode !== null && autoMode === mode;
 
   useEffect(() => {
-    const entries: { at: number; delta: number }[] = [];
+    // A rolling window of frame times kept as plain numbers. Pushing one value
+    // per frame and evicting by running sum keeps the sampler allocation-free:
+    // the old version allocated an object per frame and an array per publish,
+    // which is GC work on the very frame it is trying to measure.
+    const deltas: number[] = [];
+    let windowMs = 0;
     let frameId = 0;
     let last = 0;
     let publishedAt = 0;
@@ -29,15 +37,18 @@ function FpsOverlayPanel() {
     const measure = (now: number) => {
       if (last) {
         const delta = now - last;
-        if (delta > 0 && delta < MAX_FRAME_MS) entries.push({ at: now, delta });
+        if (delta > 0 && delta < MAX_FRAME_MS) {
+          deltas.push(delta);
+          windowMs += delta;
+        }
       }
       last = now;
-      while (entries.length > 0 && now - entries[0].at > WINDOW_MS) {
-        entries.shift();
+      while (deltas.length > 2 && windowMs > WINDOW_MS) {
+        windowMs -= deltas.shift()!;
       }
       if (now - publishedAt >= PUBLISH_MS) {
         publishedAt = now;
-        setStats(frameStats(entries.map((entry) => entry.delta)));
+        setStats(frameStats(deltas));
       }
       frameId = requestAnimationFrame(measure);
     };
@@ -45,7 +56,8 @@ function FpsOverlayPanel() {
     // rAF does not run while hidden, so the first delta after waking would be
     // the whole hidden period. Start the window fresh instead.
     const onVisibilityChange = () => {
-      entries.length = 0;
+      deltas.length = 0;
+      windowMs = 0;
       last = 0;
     };
 

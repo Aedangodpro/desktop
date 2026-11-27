@@ -102,6 +102,29 @@ function dismissSplashOnFirstPaint(): void {
 }
 
 /**
+ * Ask the browser to keep this origin's storage (the audio cache and the
+ * service worker's shell cache) out of its eviction pool. Chrome rejects the
+ * first ask on a fresh origin and grants it after engagement, so the first
+ * interaction is used for a second, quieter attempt.
+ */
+function requestPersistentStorage(): void {
+  if (typeof navigator === "undefined" || !navigator.storage?.persist) return;
+
+  const ensure = () => {
+    void navigator.storage
+      .persisted()
+      .then((persisted) => (persisted ? true : navigator.storage.persist()))
+      .catch(() => false);
+  };
+
+  ensure();
+  window.addEventListener("pointerdown", ensure, {
+    once: true,
+    passive: true,
+  });
+}
+
+/**
  * Dropping a file onto a page makes the browser navigate to it, which unmounts
  * the whole app and loses playback state. Desktop apps never do that.
  */
@@ -123,6 +146,7 @@ export function installWebRuntime(): void {
 
   document.documentElement.setAttribute("data-runtime", "web");
   installChunkLoadRecovery();
+  requestPersistentStorage();
   blockFileNavigation();
   installYoutubeBridges();
 

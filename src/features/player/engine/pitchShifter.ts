@@ -8,7 +8,8 @@ import {
 
 const GRAIN_PERIOD = 0.038;
 const NUM_TAPS = 4;
-const GRAPH_VERSION = 2;
+// v3 put an AnalyserNode in the main path (the visualizer taps it)
+const GRAPH_VERSION = 3;
 const BRANCH_TEARDOWN_MS = 200;
 const IDLE_SUSPEND_MS = 400;
 const REVERB_TAIL_SUSPEND_MS = 3000;
@@ -227,6 +228,7 @@ interface AudioEffectsGraph {
   reverbHighpass: BiquadFilterNode;
   reverbWetGain: GainNode;
   reverbConnected: boolean;
+  analyser: AnalyserNode;
   eqPreamp: GainNode;
   eqFilters: BiquadFilterNode[];
   eqChainGain: GainNode;
@@ -342,7 +344,7 @@ function setEqStage(
   if (active) {
     cancelTeardown(graph, "eq");
     if (!graph.eqConnected) {
-      graph.masterOutputGain.connect(graph.eqPreamp);
+      graph.analyser.connect(graph.eqPreamp);
       graph.eqChainGain.connect(graph.ctx.destination);
       graph.eqConnected = true;
     }
@@ -363,7 +365,7 @@ function setEqStage(
   scheduleTeardown(graph, "eq", () => {
     if (!graph.eqConnected) return;
     graph.eqConnected = false;
-    graph.masterOutputGain.disconnect(graph.eqPreamp);
+    graph.analyser.disconnect(graph.eqPreamp);
     graph.eqChainGain.disconnect(graph.ctx.destination);
   });
 }
@@ -388,6 +390,7 @@ function disposeStaleGraph(graph: any): void {
     graph.convolver?.disconnect();
     graph.reverbHighpass?.disconnect();
     graph.reverbWetGain?.disconnect();
+    graph.analyser?.disconnect();
     graph.eqPreamp?.disconnect();
     for (const filter of graph.eqFilters ?? []) filter.disconnect();
     graph.eqChainGain?.disconnect();
@@ -433,6 +436,14 @@ function buildGraph(
   convolver.connect(reverbHighpass);
   reverbHighpass.connect(reverbWetGain);
 
+  // One analyser in the main path, ahead of the EQ split: the visualizer reads
+  // the same signal that reaches the speakers, and every branch below stays
+  // fed from a node that is actually pulled by the destination.
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.8;
+  masterOutputGain.connect(analyser);
+
   const eqPreamp = ctx.createGain();
   eqPreamp.gain.value = 1.0;
   const eqFilters = EQ_BANDS.map((frequency, i) => {
@@ -460,7 +471,7 @@ function buildGraph(
   }
   eqTail.connect(eqChainGain);
 
-  masterOutputGain.connect(eqBypassGain);
+  analyser.connect(eqBypassGain);
   eqBypassGain.connect(ctx.destination);
 
   return {
@@ -478,6 +489,7 @@ function buildGraph(
     reverbHighpass,
     reverbWetGain,
     reverbConnected: false,
+    analyser,
     eqPreamp,
     eqFilters,
     eqChainGain,
@@ -553,6 +565,7 @@ export class PitchShifterController {
           g.pitchStageOutput &&
           g.masterOutputGain &&
           g.masterDryGain &&
+          g.analyser &&
           g.eqPreamp &&
           g.eqChainGain &&
           g.eqBypassGain &&
@@ -592,6 +605,11 @@ export class PitchShifterController {
 
   public isAttached(): boolean {
     return this.isConnected;
+  }
+
+  /** The graph's analyser, or null until a track has been attached. */
+  public getAnalyser(): AnalyserNode | null {
+    return this.graph?.analyser ?? null;
   }
 
   public resumeContext(): void {

@@ -99,6 +99,22 @@ class FakeConvolver extends FakeNode {
   }
 }
 
+class FakeAnalyser extends FakeNode {
+  fftSize = 256;
+  smoothingTimeConstant = 0.8;
+  constructor(ctx: FakeAudioContext) {
+    super(ctx, "analyser");
+  }
+
+  get frequencyBinCount() {
+    return this.fftSize / 2;
+  }
+
+  getByteFrequencyData(array: Uint8Array) {
+    array.fill(0);
+  }
+}
+
 class FakeBufferSource extends FakeNode {
   buffer: unknown = null;
   loop = false;
@@ -152,6 +168,10 @@ class FakeAudioContext {
 
   createConvolver() {
     return new FakeConvolver(this);
+  }
+
+  createAnalyser() {
+    return new FakeAnalyser(this);
   }
 
   createBufferSource() {

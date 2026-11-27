@@ -76,7 +76,13 @@ async function clearStoredCovers(): Promise<void> {
   if (typeof window !== "undefined" && "caches" in window) {
     try {
       const keys = await window.caches.keys();
-      await Promise.all(keys.map((key) => window.caches.delete(key)));
+      // The app-shell cache makes the app open offline; clearing covers must
+      // not take that away until the next navigation rebuilds it.
+      await Promise.all(
+        keys
+          .filter((key) => !key.startsWith("liner-shell"))
+          .map((key) => window.caches.delete(key)),
+      );
     } catch {
       // Best-effort cache cleanup
     }
@@ -256,7 +262,7 @@ export async function getStorageAnalytics(): Promise<StorageAnalytics> {
     }
   }
 
-  // 3. serviceworker covers added in cover-sw.js
+  // 3. serviceworker covers added in liner-sw.js
   try {
     const coverStats = await getCoverCacheBytes();
     coversBytes = coverStats.bytes;
