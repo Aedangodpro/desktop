@@ -231,6 +231,11 @@ const SETTING_ITEMS: { tabId: TabId; titleKey: string; descKey?: string }[] = [
     titleKey: "settings.fps_overlay.title",
     descKey: "settings.fps_overlay.description",
   },
+  {
+    tabId: "Appearance",
+    titleKey: "settings.wallpaper.title",
+    descKey: "settings.wallpaper.description",
+  },
 
   // Storage
   {

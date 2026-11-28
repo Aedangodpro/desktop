@@ -21,7 +21,10 @@ import GuestLibraryClaim from "@/features/library/ui/GuestLibraryClaim";
 import DeeplinkHandler from "./DeeplinkHandler";
 import EnvironmentWarning from "./EnvironmentWarning";
 import { ConnectionIssueModal } from "@/features/connectivity";
-import { useThemeCustomizationSync } from "@/features/settings";
+import {
+  useThemeCustomizationSync,
+  useWallpaperSync,
+} from "@/features/settings";
 import "./globals.css";
 
 function AppIconSync() {
@@ -36,6 +39,11 @@ function PresenceSync() {
 
 function ThemeSync() {
   useThemeCustomizationSync();
+  return null;
+}
+
+function WallpaperSync() {
+  useWallpaperSync();
   return null;
 }
 
@@ -68,6 +76,7 @@ export default function App() {
       >
         <GlobalTooltip />
         <ThemeSync />
+        <WallpaperSync />
         <AppIconSync />
         <PresenceSync />
         <TouchBarSync />

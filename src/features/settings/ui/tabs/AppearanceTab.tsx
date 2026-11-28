@@ -3,6 +3,7 @@ import { useTranslation, LOCALE_OPTIONS } from "@/languages";
 import { useFpsOverlayStore } from "@/features/player";
 import { MenuSelect, ToggleSwitch } from "@/shared/ui";
 import { SettingRow, SettingSection } from "../controls";
+import { WallpaperSection } from "../WallpaperSection";
 
 export function AppearanceTab({ searchQuery }: { searchQuery?: string }) {
   const { t, locale, setLocale } = useTranslation();
@@ -15,46 +16,50 @@ export function AppearanceTab({ searchQuery }: { searchQuery?: string }) {
   }, []);
 
   return (
-    <SettingSection>
-      <SettingRow
-        title={t("settings.language.label")}
-        description={t("settings.language.description")}
-        titleKey="settings.language.label"
-        descKey="settings.language.description"
-        searchQuery={searchQuery}
-        control={
-          mounted ? (
-            <MenuSelect
-              options={LOCALE_OPTIONS}
-              value={locale}
-              onChange={setLocale}
-              className="min-w-[130px]"
-              aria-label={t("settings.language.label")}
-            />
-          ) : (
-            <span />
-          )
-        }
-      />
+    <div className="flex flex-col gap-[28px]">
+      <SettingSection>
+        <SettingRow
+          title={t("settings.language.label")}
+          description={t("settings.language.description")}
+          titleKey="settings.language.label"
+          descKey="settings.language.description"
+          searchQuery={searchQuery}
+          control={
+            mounted ? (
+              <MenuSelect
+                options={LOCALE_OPTIONS}
+                value={locale}
+                onChange={setLocale}
+                className="min-w-[130px]"
+                aria-label={t("settings.language.label")}
+              />
+            ) : (
+              <span />
+            )
+          }
+        />
 
-      <SettingRow
-        title={t("settings.fps_overlay.title")}
-        description={t("settings.fps_overlay.description")}
-        titleKey="settings.fps_overlay.title"
-        descKey="settings.fps_overlay.description"
-        searchQuery={searchQuery}
-        control={
-          mounted ? (
-            <ToggleSwitch
-              checked={fpsOverlay}
-              onChange={setFpsOverlay}
-              ariaLabel={t("settings.fps_overlay.title")}
-            />
-          ) : (
-            <span />
-          )
-        }
-      />
-    </SettingSection>
+        <SettingRow
+          title={t("settings.fps_overlay.title")}
+          description={t("settings.fps_overlay.description")}
+          titleKey="settings.fps_overlay.title"
+          descKey="settings.fps_overlay.description"
+          searchQuery={searchQuery}
+          control={
+            mounted ? (
+              <ToggleSwitch
+                checked={fpsOverlay}
+                onChange={setFpsOverlay}
+                ariaLabel={t("settings.fps_overlay.title")}
+              />
+            ) : (
+              <span />
+            )
+          }
+        />
+      </SettingSection>
+
+      <WallpaperSection searchQuery={searchQuery} />
+    </div>
   );
 }

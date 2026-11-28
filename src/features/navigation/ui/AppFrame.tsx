@@ -42,8 +42,10 @@ import {
 } from "@/features/library";
 import {
   SettingsModal,
+  WallpaperBackground,
   useHasPageBackdrop,
   useEffectiveCoverGlow,
+  useWallpaperStore,
 } from "@/features/settings";
 import { UpdateModal, UpdateToastBridge } from "@/features/updater";
 import { YoutubeSignInNotice } from "@/features/youtube-auth";
@@ -303,12 +305,19 @@ export default function AppFrame({ children }: AppFrameProps) {
   const hasPageBackdrop = useHasPageBackdrop();
   const coverGlow = useEffectiveCoverGlow();
   const glassBlur = useGlassBlur();
+  const wallpaperActive = useWallpaperStore((state) =>
+    Boolean(state.selectedId),
+  );
 
   return (
     <div
       ref={appFrameRef}
       className={`app-shell-enter relative flex flex-col h-full w-full overflow-hidden p-1.5 gap-1.5 ${
-        isFullscreenPlayer ? "bg-black" : "bg-bg-canvas"
+        isFullscreenPlayer
+          ? "bg-black"
+          : wallpaperActive
+            ? "bg-transparent"
+            : "bg-bg-canvas"
       } ${isEdgeToEdge ? "rounded-none" : "rounded-item"}`}
       style={isEdgeToEdge ? undefined : { clipPath: "inset(0 round 12px)" }}
       onScroll={(e) => {
@@ -316,6 +325,7 @@ export default function AppFrame({ children }: AppFrameProps) {
         if (e.currentTarget.scrollTop !== 0) e.currentTarget.scrollTop = 0;
       }}
     >
+      {!isFullscreenPlayer && wallpaperActive ? <WallpaperBackground /> : null}
       {coverGlow ? <DynamicBlurBackground isDark={isDark} /> : null}
 
       <AnimatePresence>

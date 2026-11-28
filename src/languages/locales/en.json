@@ -823,6 +823,20 @@
       "title": "Performance overlay",
       "description": "Show live FPS, p95 frame time, detected refresh rate and the active visual mode."
     },
+    "wallpaper": {
+      "title": "Wallpaper",
+      "description": "Set a backdrop for the app. Liner reads its colours and recolours the interface to match.",
+      "plain": "Plain",
+      "custom": "Your image",
+      "choose": "Use an image from your device",
+      "reading": "Reading image…",
+      "replace": "Replace image",
+      "remove": "Remove image",
+      "error_type": "That file isn’t an image. Pick a JPG, PNG, WebP, or GIF.",
+      "error_size": "That image is too large. Try one under 25 MB.",
+      "error_storage": "Not enough local storage to save that image. Remove some app data and try again.",
+      "error_failed": "Couldn’t read that image. Try a different file."
+    },
     "autoplay_similar": {
       "title": "Autoplay similar tracks",
       "description": "Automatically add similar songs when your queue ends."
