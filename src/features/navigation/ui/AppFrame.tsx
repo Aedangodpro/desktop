@@ -326,7 +326,12 @@ export default function AppFrame({ children }: AppFrameProps) {
       }}
     >
       {!isFullscreenPlayer && wallpaperActive ? <WallpaperBackground /> : null}
-      {coverGlow ? <DynamicBlurBackground isDark={isDark} /> : null}
+      {/* The page-cover wash sits at the same level as the wallpaper and paints
+          a near-opaque base, so it would hide the chosen wallpaper in dark
+          mode. A wallpaper replaces that backdrop instead of stacking on it. */}
+      {coverGlow && !wallpaperActive ? (
+        <DynamicBlurBackground isDark={isDark} />
+      ) : null}
 
       <AnimatePresence>
         {!isFullscreenPlayer && (
