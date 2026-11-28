@@ -1,4 +1,4 @@
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { preloadCoverArt } from "@/features/covers/lib/coverArt";
 import {
   useCallback,
@@ -68,6 +68,10 @@ import {
   TrackSearchEmpty,
 } from "./TrackSearch";
 import { useTrackSort, TrackSortMenu } from "./TrackSort";
+import {
+  isSignedIn,
+  readLocalLibrary,
+} from "../local-account/store/localLibrary";
 
 interface TrackItemProps {
   track: Track;
@@ -197,8 +201,22 @@ function LibraryPlaylistContent() {
   const currentUser = useAuthStore((state) => state.user);
   const likesOwnerName = userDisplayName(currentUser);
   const decodedId = id ? decodeURIComponent(id) : null;
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
+
+  // A playlist imported while signed out keeps a `local_` id. Once that
+  // library has been claimed, the account copy has its own id.
+  useEffect(() => {
+    if (!decodedId?.startsWith("local_") || !isSignedIn()) return;
+    const remoteId = readLocalLibrary().playlists.find(
+      (playlist) => playlist.id === decodedId,
+    )?.remoteId;
+    if (remoteId)
+      navigate(`/library/playlist?id=${encodeURIComponent(remoteId)}`, {
+        replace: true,
+      });
+  }, [decodedId, navigate]);
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);

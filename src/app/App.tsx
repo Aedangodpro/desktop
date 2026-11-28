@@ -17,6 +17,7 @@ import { useTouchBarSync } from "@/features/touchbar";
 import { useOverlaySync } from "@/features/overlay";
 import { useDiscordSync } from "@/features/discord";
 import { AppRoutes } from "./routes";
+import GuestLibraryClaim from "@/features/library/ui/GuestLibraryClaim";
 import DeeplinkHandler from "./DeeplinkHandler";
 import EnvironmentWarning from "./EnvironmentWarning";
 import { ConnectionIssueModal } from "@/features/connectivity";
@@ -80,6 +81,7 @@ export default function App() {
                   <DeeplinkHandler />
                   <EnvironmentWarning />
                   <ConnectionIssueModal />
+                  <GuestLibraryClaim />
                   <AuthLock>
                     <AppRoutes />
                   </AuthLock>

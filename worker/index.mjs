@@ -1,4 +1,4 @@
-// web build: assets/index.web-BSv4fj9N.js
+// web build: assets/index.web-BaNP6e1R.js
 /**
  * Freebuff Sites worker for the browser build.
  *

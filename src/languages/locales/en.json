@@ -287,6 +287,21 @@
       "empty_subtitle": "Liked songs are downloaded in the background while you're online."
     }
   },
+  "local_claim": {
+    "title": "Add your on-device library to this account?",
+    "body": "Playlists and liked songs you saved while signed out live only on this device. Adding them to your account keeps them in sync everywhere.",
+    "detail_one": "{count} playlist · {tracks} tracks · {liked} liked songs",
+    "detail_other": "{count} playlists · {tracks} tracks · {liked} liked songs",
+    "confirm": "Add them",
+    "skip": "Not now",
+    "working": "Adding your library…",
+    "working_progress": "Adding your library… {done} of {total}",
+    "success": "Library added to your account",
+    "success_detail_one": "{count} track and {liked} liked songs copied",
+    "success_detail_other": "{count} tracks and {liked} liked songs copied",
+    "partial": "Some items could not be added. The rest stays on this device.",
+    "failed": "Could not reach your account. Your library is still on this device."
+  },
   "login": {
     "welcome_back": "Welcome back",
     "sign_in_to_account": "Sign in to your account",
@@ -301,7 +316,8 @@
     "guest_can": "Search, lyrics, playlists and liked songs stay on this device.",
     "guest_needs_account": "Signing in syncs them across devices and adds your profile, saved albums, artists and playlist import.",
     "need_account": "Need an account?",
-    "need_account_action": "Create one in the official Liner app",
+    "need_account_action": "Create one at tryliner.fun",
+    "forgot_password": "Forgot your password?",
     "btn_continue": "Continue",
     "btn_back": "Back",
     "username_hint": "3-30 lowercase characters, numbers or underscores.",

@@ -31,9 +31,10 @@ export default function LoginPage() {
   // Account creation cannot finish in a browser tab: the register challenge
   // needs a Turnstile widget bound to the API owner's hosts, and
   // `/v1/auth/register` itself sits behind an edge challenge that a Worker's
-  // egress cannot pass. The web build therefore offers sign-in only. Most
-  // desktop visitors arrive without an account, so there the page still opens
-  // on the sign-up form.
+  // egress cannot pass. The web build therefore offers sign-in only and sends
+  // new accounts and password recovery to the official portal. Most desktop
+  // visitors arrive without an account, so there the page still opens on the
+  // sign-up form.
   const canRegister = !IS_WEB_TARGET;
   const [mode, setMode] = useState<"login" | "register">(
     canRegister ? "register" : "login",
@@ -561,6 +562,14 @@ export default function LoginPage() {
                           t("login.btn_sign_in")
                         )}
                       </Button>
+                      <a
+                        href="https://tryliner.fun/account"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-[10px] block text-center text-[11.5px] leading-[1.5] text-text-tertiary underline underline-offset-2 transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-text-primary rounded-xs"
+                      >
+                        {t("login.forgot_password")}
+                      </a>
                     </motion.div>
                   ) : registerStep === 1 ? (
                     <motion.div
@@ -664,7 +673,7 @@ export default function LoginPage() {
               <p className="m-0 mt-[10px] text-center text-[11.5px] leading-[1.5] text-text-tertiary">
                 {t("login.need_account")}{" "}
                 <a
-                  href="https://tryliner.fun"
+                  href="https://tryliner.fun/account"
                   target="_blank"
                   rel="noreferrer"
                   className="text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-text-primary rounded-xs"

@@ -7,8 +7,9 @@ import type { Track } from "@/shared/types";
  * Without an account there is no server to hold playlists or likes, so they
  * live here instead, in localStorage, in the same shapes the rest of the
  * library UI already renders. Nothing in this module talks to the API: when a
- * session exists the hooks keep using the server and this data is simply not
- * read. Signing in later does not merge the two.
+ * session exists the hooks keep using the server instead. `claimLocalLibrary`
+ * copies this data into the account after sign-in, and the `remoteId` /
+ * `claimedAt` markers below keep that copy from happening twice.
  */
 
 export interface LocalPlaylistItem {
@@ -25,6 +26,10 @@ export interface LocalPlaylist {
   updatedAt: string;
   revision: number;
   items: LocalPlaylistItem[];
+  /** Account playlist created from this one, once it was uploaded. */
+  remoteId?: string;
+  /** Newest item timestamp already present in the account copy. */
+  claimedAt?: string;
 }
 
 export interface LocalLikedTrack {
@@ -36,6 +41,8 @@ export interface LocalLikedTrack {
 export interface LocalLibrary {
   playlists: LocalPlaylist[];
   liked: LocalLikedTrack[];
+  /** Newest like timestamp already present in the account copy. */
+  likedClaimedAt?: string;
 }
 
 export const LOCAL_LIBRARY_KEY = "liner_local_library_v1";
@@ -94,6 +101,12 @@ function readPlaylist(value: unknown): LocalPlaylist | null {
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : nowIso(),
     revision: typeof value.revision === "number" ? value.revision : 1,
     items,
+    ...(typeof value.remoteId === "string" && value.remoteId
+      ? { remoteId: value.remoteId }
+      : {}),
+    ...(typeof value.claimedAt === "string" && value.claimedAt
+      ? { claimedAt: value.claimedAt }
+      : {}),
   };
 }
 
@@ -130,6 +143,9 @@ function sanitize(raw: unknown): LocalLibrary {
       seen.add(entry.trackId);
       return true;
     }),
+    ...(typeof raw.likedClaimedAt === "string" && raw.likedClaimedAt
+      ? { likedClaimedAt: raw.likedClaimedAt }
+      : {}),
   };
 }
 
@@ -350,4 +366,36 @@ export function unlikeLocalTrack(trackId: string): void {
 
 export function isLocalTrackLiked(trackId: string): boolean {
   return readLocalLibrary().liked.some((entry) => entry.trackId === trackId);
+}
+
+/**
+ * Sync bookkeeping. These markers never bump `revision` or `updatedAt`, so a
+ * background claim does not make the library look edited to the UI.
+ */
+export function setLocalPlaylistRemoteId(id: string, remoteId: string): void {
+  const library = readLocalLibrary();
+  writeLocalLibrary({
+    ...library,
+    playlists: library.playlists.map((playlist) =>
+      playlist.id === id ? { ...playlist, remoteId } : playlist,
+    ),
+  });
+}
+
+export function markLocalPlaylistClaimed(
+  id: string,
+  remoteId: string,
+  claimedAt: string,
+): void {
+  const library = readLocalLibrary();
+  writeLocalLibrary({
+    ...library,
+    playlists: library.playlists.map((playlist) =>
+      playlist.id === id ? { ...playlist, remoteId, claimedAt } : playlist,
+    ),
+  });
+}
+
+export function markLocalLikedClaimed(claimedAt: string): void {
+  writeLocalLibrary({ ...readLocalLibrary(), likedClaimedAt: claimedAt });
 }
